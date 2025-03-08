@@ -1,5 +1,6 @@
 import { BskyAgent } from '@atproto/api';
 import { commandHandler } from './command-handler';
+import { storage } from './storage'; // Import the storage module
 
 interface BlueskyCredentials {
   identifier: string;
@@ -11,7 +12,6 @@ export class BlueskyBot {
   private credentials: BlueskyCredentials;
   private isWatching: boolean = false;
   private watchInterval: NodeJS.Timeout | null = null;
-  private lastSeenAt: string | undefined;
   private lastLoginAt: number = 0;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分のクールダウン
 
@@ -96,6 +96,13 @@ export class BlueskyBot {
       console.log('Starting Bluesky DM watch...');
       this.isWatching = true;
 
+      // 前回の処理時刻を取得
+      const state = await storage.getBotState('bluesky');
+      if (state) {
+        this.lastSeenAt = state.lastProcessedAt.toISOString();
+        console.log('Restored last processed time:', this.lastSeenAt);
+      }
+
       // Poll for new notifications every 30 seconds
       this.watchInterval = setInterval(async () => {
         try {
@@ -142,11 +149,12 @@ export class BlueskyBot {
             }
           }
 
-          // Update seen marker
+          // Update seen marker and save to database
           if (response.data.notifications.length > 0) {
             this.lastSeenAt = new Date().toISOString();
             await this.agent.updateSeenNotifications();
-            console.log('Updated seen notifications timestamp');
+            await storage.updateBotState('bluesky', new Date(this.lastSeenAt));
+            console.log('Updated seen notifications timestamp:', this.lastSeenAt);
           }
         } catch (error) {
           if (error instanceof Error && error.message.includes('rate limit')) {

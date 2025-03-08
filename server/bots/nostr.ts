@@ -1,6 +1,7 @@
 import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
+import { storage } from './storage'; // Assuming storage module exists
 
 // Set WebSocket implementation for nostr-tools
 (globalThis as any).WebSocket = WebSocket;
@@ -25,6 +26,7 @@ export class NostrBot {
   private relayUrls = ['wss://relay.damus.io', 'wss://nos.lol'];
   private activeSubscriptions: ReturnType<SimplePool['sub']>[] = [];
   private isWatching = false;
+  private lastProcessedAt: number | null = null;
 
   constructor(credentials: NostrCredentials) {
     this.credentials = credentials;
@@ -102,11 +104,19 @@ export class NostrBot {
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
+      // 前回の処理時刻を取得
+      const state = await storage.getBotState('nostr');
+      if (state) {
+        this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
+        console.log('Restored last processed time:', this.lastProcessedAt);
+      }
+
       console.log('Watching for DMs to pubkey:', pubkey);
 
       const filter: Filter = {
         kinds: [4],
-        '#p': [pubkey]
+        '#p': [pubkey],
+        since: this.lastProcessedAt || undefined
       };
 
       // Create subscription
@@ -143,6 +153,11 @@ export class NostrBot {
             await this.sendDM(event.pubkey, response.content);
             console.log('Response sent successfully');
           }
+
+          // Update last processed time
+          const timestamp = new Date(event.created_at * 1000);
+          await storage.updateBotState('nostr', timestamp);
+          this.lastProcessedAt = event.created_at;
         } catch (error) {
           console.error('Failed to process DM:', error);
         }

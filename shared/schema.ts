@@ -53,12 +53,19 @@ export const messages = pgTable("messages", {
   error: text("error"),
 });
 
+export const botState = pgTable("bot_state", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  lastProcessedAt: timestamp("last_processed_at").notNull(),
+});
+
 // Insert schemas
 export const settingsSchema = createInsertSchema(botSettings).omit({ id: true });
 export const insertBottleSchema = createInsertSchema(bottles).omit({ id: true, createdAt: true });
 export const insertReplySchema = createInsertSchema(bottleReplies).omit({ id: true, createdAt: true });
 export const insertUserStatsSchema = createInsertSchema(userStats).omit({ id: true, lastActivity: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
+export const botStateSchema = createInsertSchema(botState).omit({ id: true });
 
 // Types
 export type Settings = typeof botSettings.$inferSelect;
@@ -66,14 +73,16 @@ export type Bottle = typeof bottles.$inferSelect;
 export type BottleReply = typeof bottleReplies.$inferSelect;
 export type UserStats = typeof userStats.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type BotState = typeof botState.$inferSelect;
 
+// Validation schemas
 export type InsertSettings = z.infer<typeof settingsSchema>;
 export type InsertBottle = z.infer<typeof insertBottleSchema>;
 export type InsertBottleReply = z.infer<typeof insertReplySchema>;
 export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type InsertBotState = z.infer<typeof botStateSchema>;
 
-// Validation schemas
 export const platformSchema = z.enum(["bluesky", "nostr"]);
 export const statusSchema = z.enum(["pending", "sent", "failed"]);
 export const bottleStatusSchema = z.enum(["active", "archived"]);

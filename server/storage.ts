@@ -4,6 +4,7 @@ import { InsertBottle, InsertBottleReply, InsertUserStats } from "@shared/schema
 import { db } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { bottles, bottleReplies, userStats, botSettings, messages } from "@shared/schema";
+import { botState, type BotState, type InsertBotState } from "@shared/schema";
 
 export interface IStorage {
   // Settings operations
@@ -31,6 +32,10 @@ export interface IStorage {
   getUserStats(platform: string, userId: string): Promise<UserStats | null>;
   incrementUserStat(platform: string, userId: string, stat: "bottlesSent" | "bottlesReceived" | "repliesSent"): Promise<void>;
   updateUserLastActivity(platform: string, userId: string): Promise<void>;
+
+  // Bot state operations
+  getBotState(platform: string): Promise<BotState | null>;
+  updateBotState(platform: string, lastProcessedAt: Date): Promise<BotState>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -243,6 +248,27 @@ export class DatabaseStorage implements IStorage {
           repliesSent: 0
         });
     }
+  }
+
+  // Bot state operations
+  async getBotState(platform: string): Promise<BotState | null> {
+    const [state] = await db
+      .select()
+      .from(botState)
+      .where(eq(botState.platform, platform));
+    return state || null;
+  }
+
+  async updateBotState(platform: string, lastProcessedAt: Date): Promise<BotState> {
+    const [state] = await db
+      .insert(botState)
+      .values({ platform, lastProcessedAt })
+      .onConflictDoUpdate({
+        target: [botState.platform],
+        set: { lastProcessedAt }
+      })
+      .returning();
+    return state;
   }
 }
 
