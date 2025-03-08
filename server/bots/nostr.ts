@@ -71,18 +71,19 @@ export class NostrBot {
       const eventId = getEventHash(event);
       const signedEvent = { ...event, id: eventId };
 
-      try {
-        await Promise.any(
-          this.relayUrls.map(url =>
-            this.pool.publish(url, signedEvent)
-          )
-        );
-        console.log('DM sent successfully');
-        return eventId;
-      } catch (error) {
-        console.error('Failed to publish to any relay:', error);
-        return null;
+      // Publish to each relay individually
+      for (const url of this.relayUrls) {
+        try {
+          console.log(`Publishing to relay: ${url}`);
+          await this.pool.publish(url, signedEvent);
+          console.log(`Successfully published to ${url}`);
+          return eventId;
+        } catch (error) {
+          console.error(`Failed to publish to ${url}:`, error);
+        }
       }
+
+      throw new Error('Failed to publish to any relay');
     } catch (error) {
       console.error('Failed to send Nostr DM:', error);
       return null;
