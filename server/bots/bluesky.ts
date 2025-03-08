@@ -91,6 +91,29 @@ export class BlueskyBot {
         createdAt: notification.record.createdAt
       });
 
+      // 投稿の詳細を取得
+      if (notification.uri) {
+        try {
+          const postView = await this.agent.getPostThread({
+            uri: notification.uri,
+            depth: 0
+          });
+
+          if (postView.success) {
+            const post = postView.data.thread.post;
+            console.log('Post content:', {
+              text: post.record.text,
+              hasReply: !!post.record.reply,
+              createdAt: post.record.createdAt
+            });
+            return post.record.text;
+          }
+        } catch (error) {
+          console.error('Failed to fetch post details:', error);
+        }
+      }
+
+      // 投稿の詳細が取得できない場合は、通知のレコードから直接取得を試みる
       if (notification.record.$type === 'app.bsky.feed.post') {
         return notification.record.text;
       }
@@ -150,7 +173,7 @@ export class BlueskyBot {
           }
         }
 
-        // Update last notification ID and save to database
+        // 最後の通知のIDを保存
         this.lastNotificationId = response.data.notifications[0].uri;
         await storage.updateBotState('bluesky', new Date());
         console.log('Updated bot state timestamp');
