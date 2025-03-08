@@ -14,7 +14,7 @@ export class BlueskyBot {
   private watchInterval: NodeJS.Timeout | null = null;
   private lastLoginAt: number = 0;
   private lastNotificationId: string | undefined;
-  private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分のクールダウン
+  private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分
 
   constructor(credentials: BlueskyCredentials) {
     console.log('Initializing BlueskyBot with handle:', credentials.identifier);
@@ -57,7 +57,6 @@ export class BlueskyBot {
 
       console.log(`Sending DM to ${recipient}: ${content}`);
 
-      // メンションを含むDMを作成
       const response = await this.agent.post({
         text: `@${recipient} ${content}`,
         reply: undefined,
@@ -68,11 +67,6 @@ export class BlueskyBot {
       console.log('DM sent successfully:', response.uri);
       return response.uri;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('rate limit')) {
-        console.log('Hit rate limit, waiting before retry...');
-        await new Promise(resolve => setTimeout(resolve, 60000)); // 1分待機
-        return this.sendDM(recipient, content); // リトライ
-      }
       console.error('Failed to send Bluesky DM:', error);
       return null;
     }
@@ -93,30 +87,30 @@ export class BlueskyBot {
       try {
         const state = await storage.getBotState('bluesky');
         if (state) {
-          const lastProcessed = new Date(state.lastProcessedAt);
-          console.log('Restored last processed time:', lastProcessed.toISOString());
-          // 最後の処理時刻の5分前から取得（念のため）
-          lastProcessed.setMinutes(lastProcessed.getMinutes() - 5);
-          this.lastNotificationId = lastProcessed.toISOString();
+          console.log('Restored last processed time:', state.lastProcessedAt.toISOString());
         } else {
           console.log('No previous state found, starting fresh');
         }
       } catch (error) {
         console.error('Error retrieving bot state:', error);
-        // エラーが発生しても処理は継続
       }
 
-      // Poll for new notifications every 30 seconds
+      // 5分ごとに通知をチェック
       this.watchInterval = setInterval(async () => {
         try {
           await this.ensureSession();
           console.log('Checking for new Bluesky notifications...');
 
-          // 通知を新しい順に取得
-          const response = await this.agent.listNotifications({
-            limit: 20,
-            cursor: this.lastNotificationId
-          });
+          const params: any = {
+            limit: 20
+          };
+
+          // 前回取得した最後の通知IDがある場合のみcursorを設定
+          if (this.lastNotificationId) {
+            params.cursor = this.lastNotificationId;
+          }
+
+          const response = await this.agent.listNotifications(params);
 
           if (response.data.notifications.length > 0) {
             console.log(`Found ${response.data.notifications.length} new notifications`);
@@ -124,17 +118,11 @@ export class BlueskyBot {
             // 通知を古い順に処理
             for (const notification of [...response.data.notifications].reverse()) {
               try {
-                // メンションを含む投稿を検出
                 if (notification.reason === 'mention') {
-                  console.log('Processing notification:', {
-                    type: notification.reason,
-                    author: notification.author.handle,
-                    record: notification.record
-                  });
+                  console.log('Processing mention from:', notification.author.handle);
 
                   const post = notification.record as any;
                   if (post.text && post.text.startsWith('/')) {
-                    console.log('Received command from:', notification.author.handle);
                     console.log('Command content:', post.text);
 
                     const response = await commandHandler.handleCommand(
@@ -166,14 +154,9 @@ export class BlueskyBot {
             }
           }
         } catch (error) {
-          if (error instanceof Error && error.message.includes('rate limit')) {
-            console.log('Hit rate limit, waiting before next check...');
-            // エラーをスローせず、次のインターバルまで待機
-          } else {
-            console.error('Error checking Bluesky notifications:', error);
-          }
+          console.error('Error checking Bluesky notifications:', error);
         }
-      }, 30000);
+      }, 5 * 60 * 1000); // 5分間隔
 
       console.log('Bluesky DM watch started');
     } catch (error) {
@@ -187,6 +170,7 @@ export class BlueskyBot {
   }
 
   cleanup() {
+    console.log('Cleaning up Bluesky bot...');
     this.isWatching = false;
     if (this.watchInterval) {
       clearInterval(this.watchInterval);
