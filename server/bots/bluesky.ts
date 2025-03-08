@@ -71,6 +71,18 @@ export class BlueskyBot {
     }
   }
 
+  private async decryptDM(notification: any): Promise<string | null> {
+    try {
+      if (!notification.record?.text) {
+        return null;
+      }
+      return notification.record.text;
+    } catch (error) {
+      console.error('Failed to decrypt DM:', error);
+      return null;
+    }
+  }
+
   async checkNotifications() {
     try {
       await this.ensureSession();
@@ -88,22 +100,29 @@ export class BlueskyBot {
         // 通知を古い順に処理
         for (const notification of [...response.data.notifications].reverse()) {
           try {
-            if (notification.reason === 'mention') {
-              console.log('Processing mention from:', notification.author.handle);
+            // メンションとDMの両方をチェック
+            if (notification.reason === 'mention' || notification.reason === 'post') {
+              console.log('Processing notification:', {
+                type: notification.reason,
+                author: notification.author.handle
+              });
 
-              const post = notification.record as any;
-              if (post.text && post.text.startsWith('/')) {
-                console.log('Command content:', post.text);
+              const message = await this.decryptDM(notification);
+              if (message) {
+                console.log('Message content:', message);
 
-                const response = await commandHandler.handleCommand(
-                  'bluesky',
-                  notification.author.did,
-                  post.text
-                );
+                if (message.startsWith('/')) {
+                  console.log('Processing command from:', notification.author.handle);
+                  const response = await commandHandler.handleCommand(
+                    'bluesky',
+                    notification.author.did,
+                    message
+                  );
 
-                if (response.content) {
-                  console.log('Sending response:', response.content);
-                  await this.sendDM(notification.author.handle, response.content);
+                  if (response.content) {
+                    console.log('Sending response:', response.content);
+                    await this.sendDM(notification.author.handle, response.content);
+                  }
                 }
               }
             }
