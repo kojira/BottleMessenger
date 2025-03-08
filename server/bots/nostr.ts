@@ -56,6 +56,8 @@ export class NostrBot {
       const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
       const pubkey = getPublicKey(privateKeyBytes);
 
+      console.log(`Sending DM to ${recipient}: ${content}`);
+
       const encryptedContent = await nip04.encrypt(
         privateKeyBytes,
         recipient,
@@ -121,13 +123,15 @@ export class NostrBot {
             if (event.pubkey === pubkey) return; // Skip own messages
 
             try {
+              console.log('Received encrypted DM from:', event.pubkey);
+
               const content = await nip04.decrypt(
                 privateKeyBytes,
                 event.pubkey,
                 event.content
               );
 
-              console.log('Received DM from:', event.pubkey);
+              console.log('Decrypted DM content:', content);
 
               // Process command and send response
               const response = await commandHandler.handleCommand(
@@ -137,7 +141,9 @@ export class NostrBot {
               );
 
               if (response.content) {
+                console.log('Sending response:', response.content);
                 await this.sendDM(event.pubkey, response.content);
+                console.log('Response sent successfully');
               }
             } catch (error) {
               console.error('Failed to process DM:', error);

@@ -11,6 +11,8 @@ export class CommandHandler {
     const parts = command.trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
 
+    console.log(`Handling command: ${cmd} from ${platform}:${userId}`);
+
     try {
       switch (cmd) {
         case "/help":
@@ -60,6 +62,8 @@ export class CommandHandler {
       return { content: "メッセージを入力してください。", error: true };
     }
 
+    console.log(`Creating new bottle from ${platform}:${userId} with content: ${content}`);
+
     const bottle: InsertBottle = {
       content,
       senderPlatform: platform,
@@ -70,16 +74,21 @@ export class CommandHandler {
     await storage.createBottle(bottle);
     await storage.incrementUserStat(platform, userId, "bottlesSent");
 
+    console.log('Bottle created successfully');
     return { content: "ボトルメールを放流しました！🌊" };
   }
 
   private async handleCheckBottle(platform: string, userId: string): Promise<CommandResponse> {
+    console.log(`Checking bottle for ${platform}:${userId}`);
+
     const bottle = await storage.getRandomActiveBottle(platform, userId);
     if (!bottle) {
+      console.log('No active bottles found');
       return { content: "現在読めるボトルメールはありません。" };
     }
 
     await storage.incrementUserStat(platform, userId, "bottlesReceived");
+    console.log(`Found bottle #${bottle.id}`);
     return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}` };
   }
 
@@ -89,6 +98,8 @@ export class CommandHandler {
     bottleId: string, 
     content: string
   ): Promise<CommandResponse> {
+    console.log(`Processing reply to bottle #${bottleId} from ${platform}:${userId}`);
+
     if (!bottleId || !content) {
       return { content: "ボトルメールIDと返信内容を入力してください。", error: true };
     }
@@ -100,6 +111,7 @@ export class CommandHandler {
 
     const bottle = await storage.getBottle(id);
     if (!bottle) {
+      console.log(`Bottle #${id} not found`);
       return { content: "指定されたボトルメールは存在しません。", error: true };
     }
 
@@ -113,10 +125,13 @@ export class CommandHandler {
     await storage.createBottleReply(reply);
     await storage.incrementUserStat(platform, userId, "repliesSent");
 
+    console.log(`Reply created for bottle #${id}`);
     return { content: "返信を送信しました！" };
   }
 
   private async handleListBottles(platform: string, userId: string): Promise<CommandResponse> {
+    console.log(`Listing bottles for ${platform}:${userId}`);
+
     const bottles = await storage.getUserBottles(platform, userId);
     if (bottles.length === 0) {
       return { content: "まだボトルメールを送信していません。" };
@@ -127,15 +142,19 @@ export class CommandHandler {
       return `#${b.id}: ${b.content.substring(0, 30)}... (返信: ${replies}件)`;
     }).join("\n");
 
+    console.log(`Found ${bottles.length} bottles`);
     return { content: `あなたのボトルメール一覧:\n${bottleList}` };
   }
 
   private async handleStats(platform: string, userId: string): Promise<CommandResponse> {
+    console.log(`Getting stats for ${platform}:${userId}`);
+
     const stats = await storage.getUserStats(platform, userId);
     if (!stats) {
       return { content: "統計情報がありません。" };
     }
 
+    console.log(`Stats retrieved: sent=${stats.bottlesSent}, received=${stats.bottlesReceived}, replies=${stats.repliesSent}`);
     return {
       content: `📊 統計情報
 送信したボトルメール: ${stats.bottlesSent}通
