@@ -1,4 +1,5 @@
 import { SimplePool, getPublicKey, nip04, getEventHash } from 'nostr-tools';
+import { commandHandler } from './command-handler';
 
 interface NostrCredentials {
   privateKey: string;
@@ -103,12 +104,18 @@ export class NostrBot {
                 event.content
               );
 
-              console.log('Received DM:', {
-                from: event.pubkey,
+              // Process command and send response
+              const response = await commandHandler.handleCommand(
+                'nostr',
+                event.pubkey,
                 content
-              });
+              );
+
+              if (response.content) {
+                await this.sendDM(event.pubkey, response.content);
+              }
             } catch (error) {
-              console.error('Failed to decrypt DM:', error);
+              console.error('Failed to process DM:', error);
             }
           }
         }

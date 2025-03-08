@@ -1,10 +1,9 @@
 import { Settings, Message, InsertSettings, InsertMessage } from "@shared/schema";
-import fs from "fs/promises";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
-const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
+import { Bottle, BottleReply, UserStats } from "@shared/schema";
+import { InsertBottle, InsertBottleReply, InsertUserStats } from "@shared/schema";
+import { db } from "./db";
+import { and, eq, ne, sql } from "drizzle-orm";
+import { bottles, bottleReplies, userStats, botSettings, messages } from "@shared/schema";
 
 export interface IStorage {
   // Settings operations
@@ -16,105 +15,235 @@ export interface IStorage {
   getMessage(id: number): Promise<Message | undefined>;
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessage(id: number, message: Partial<Message>): Promise<Message>;
+
+  // Bottle operations
+  createBottle(bottle: InsertBottle): Promise<Bottle>;
+  getBottle(id: number): Promise<Bottle | null>;
+  getRandomActiveBottle(platform: string, userId: string): Promise<Bottle | null>;
+  getUserBottles(platform: string, userId: string): Promise<(Bottle & { replyCount: number })[]>;
+  archiveBottle(id: number): Promise<void>;
+
+  // Bottle Reply operations
+  createBottleReply(reply: InsertBottleReply): Promise<BottleReply>;
+  getBottleReplies(bottleId: number): Promise<BottleReply[]>;
+
+  // User Stats operations
+  getUserStats(platform: string, userId: string): Promise<UserStats | null>;
+  incrementUserStat(platform: string, userId: string, stat: "bottlesSent" | "bottlesReceived" | "repliesSent"): Promise<void>;
+  updateUserLastActivity(platform: string, userId: string): Promise<void>;
 }
 
-export class JSONStorage implements IStorage {
-  private settings: Settings | null;
-  private messages: Map<number, Message>;
-  private messageId: number;
+export class DatabaseStorage implements IStorage {
+  private settings: Settings | null = null;
 
-  constructor() {
-    this.settings = null;
-    this.messages = new Map();
-    this.messageId = 1;
-    this.initStorage();
-  }
-
-  private async initStorage() {
-    try {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-
-      try {
-        const settingsData = await fs.readFile(SETTINGS_FILE, 'utf-8');
-        this.settings = JSON.parse(settingsData) as Settings;
-      } catch (e) {
-        await this.saveSettings();
-      }
-
-      try {
-        const messagesData = await fs.readFile(MESSAGES_FILE, 'utf-8');
-        const messages = JSON.parse(messagesData) as Message[];
-        messages.forEach(msg => {
-          this.messages.set(msg.id, msg);
-          this.messageId = Math.max(this.messageId, msg.id + 1);
-        });
-      } catch (e) {
-        await this.saveMessages();
-      }
-    } catch (e) {
-      console.error("Failed to initialize storage:", e);
-      throw e;
-    }
-  }
-
-  private async saveSettings() {
-    if (this.settings) {
-      await fs.writeFile(SETTINGS_FILE, JSON.stringify(this.settings, null, 2));
-    }
-  }
-
-  private async saveMessages() {
-    await fs.writeFile(MESSAGES_FILE, JSON.stringify(Array.from(this.messages.values()), null, 2));
-  }
-
+  // Settings operations
   async getSettings(): Promise<Settings | null> {
-    return this.settings;
+    const [settings] = await db.select().from(botSettings);
+    return settings || null;
   }
 
   async updateSettings(settings: InsertSettings): Promise<Settings> {
-    // Always ensure enabled is a string
     const enabled = settings.enabled ?? 'true';
-    this.settings = { 
-      id: 1, 
-      ...settings,
-      enabled 
-    };
-    await this.saveSettings();
-    return this.settings;
+    const [updated] = await db
+      .insert(botSettings)
+      .values({ id: 1, ...settings, enabled })
+      .onConflictDoUpdate({
+        target: botSettings.id,
+        set: { ...settings, enabled }
+      })
+      .returning();
+    return updated;
   }
 
+  // Message operations
   async getMessages(limit = 100): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, limit);
+    return await db
+      .select()
+      .from(messages)
+      .orderBy(sql`${messages.createdAt} DESC`)
+      .limit(limit);
   }
 
   async getMessage(id: number): Promise<Message | undefined> {
-    return this.messages.get(id);
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, id));
+    return message;
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
-    const newMessage: Message = {
-      ...message,
-      id: this.messageId++,
-      createdAt: new Date(),
-      targetId: message.targetId ?? null,
-      error: message.error ?? null
-    };
-    this.messages.set(newMessage.id, newMessage);
-    await this.saveMessages();
-    return newMessage;
+    const [created] = await db
+      .insert(messages)
+      .values({
+        ...message,
+        targetId: message.targetId ?? null,
+        error: message.error ?? null
+      })
+      .returning();
+    return created;
   }
 
   async updateMessage(id: number, update: Partial<Message>): Promise<Message> {
-    const message = this.messages.get(id);
-    if (!message) throw new Error(`Message ${id} not found`);
+    const [updated] = await db
+      .update(messages)
+      .set(update)
+      .where(eq(messages.id, id))
+      .returning();
+    return updated;
+  }
 
-    const updatedMessage = { ...message, ...update };
-    this.messages.set(id, updatedMessage);
-    await this.saveMessages();
-    return updatedMessage;
+  // Bottle operations
+  async createBottle(bottle: InsertBottle): Promise<Bottle> {
+    const [created] = await db
+      .insert(bottles)
+      .values(bottle)
+      .returning();
+    return created;
+  }
+
+  async getBottle(id: number): Promise<Bottle | null> {
+    const [bottle] = await db
+      .select()
+      .from(bottles)
+      .where(eq(bottles.id, id));
+    return bottle || null;
+  }
+
+  async getRandomActiveBottle(platform: string, userId: string): Promise<Bottle | null> {
+    const [bottle] = await db
+      .select()
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.status, "active"),
+          ne(bottles.senderId, userId),
+          ne(bottles.senderPlatform, platform)
+        )
+      )
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    return bottle || null;
+  }
+
+  async getUserBottles(
+    platform: string,
+    userId: string
+  ): Promise<(Bottle & { replyCount: number })[]> {
+    return await db
+      .select({
+        ...bottles,
+        replyCount: sql<number>`COUNT(${bottleReplies.id})`
+      })
+      .from(bottles)
+      .leftJoin(bottleReplies, eq(bottles.id, bottleReplies.bottleId))
+      .where(
+        and(
+          eq(bottles.senderPlatform, platform),
+          eq(bottles.senderId, userId)
+        )
+      )
+      .groupBy(bottles.id)
+      .orderBy(bottles.createdAt);
+  }
+
+  async archiveBottle(id: number): Promise<void> {
+    await db
+      .update(bottles)
+      .set({ status: "archived" })
+      .where(eq(bottles.id, id));
+  }
+
+  // Bottle Reply operations
+  async createBottleReply(reply: InsertBottleReply): Promise<BottleReply> {
+    const [created] = await db
+      .insert(bottleReplies)
+      .values(reply)
+      .returning();
+    return created;
+  }
+
+  async getBottleReplies(bottleId: number): Promise<BottleReply[]> {
+    return await db
+      .select()
+      .from(bottleReplies)
+      .where(eq(bottleReplies.bottleId, bottleId))
+      .orderBy(bottleReplies.createdAt);
+  }
+
+  // User Stats operations
+  async getUserStats(platform: string, userId: string): Promise<UserStats | null> {
+    const [stats] = await db
+      .select()
+      .from(userStats)
+      .where(
+        and(
+          eq(userStats.platform, platform),
+          eq(userStats.userId, userId)
+        )
+      );
+    return stats || null;
+  }
+
+  async incrementUserStat(
+    platform: string,
+    userId: string,
+    stat: "bottlesSent" | "bottlesReceived" | "repliesSent"
+  ): Promise<void> {
+    const existingStats = await this.getUserStats(platform, userId);
+
+    if (existingStats) {
+      await db
+        .update(userStats)
+        .set({
+          [stat]: sql`${userStats[stat]} + 1`,
+          lastActivity: new Date()
+        })
+        .where(
+          and(
+            eq(userStats.platform, platform),
+            eq(userStats.userId, userId)
+          )
+        );
+    } else {
+      await db
+        .insert(userStats)
+        .values({
+          platform,
+          userId,
+          [stat]: 1,
+          bottlesSent: stat === "bottlesSent" ? 1 : 0,
+          bottlesReceived: stat === "bottlesReceived" ? 1 : 0,
+          repliesSent: stat === "repliesSent" ? 1 : 0
+        });
+    }
+  }
+
+  async updateUserLastActivity(platform: string, userId: string): Promise<void> {
+    const existingStats = await this.getUserStats(platform, userId);
+
+    if (existingStats) {
+      await db
+        .update(userStats)
+        .set({ lastActivity: new Date() })
+        .where(
+          and(
+            eq(userStats.platform, platform),
+            eq(userStats.userId, userId)
+          )
+        );
+    } else {
+      await db
+        .insert(userStats)
+        .values({
+          platform,
+          userId,
+          bottlesSent: 0,
+          bottlesReceived: 0,
+          repliesSent: 0
+        });
+    }
   }
 }
 
-export const storage = new JSONStorage();
+export const storage = new DatabaseStorage();

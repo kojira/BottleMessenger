@@ -1,4 +1,5 @@
 import { BskyAgent } from '@atproto/api';
+import { commandHandler } from './command-handler';
 
 interface BlueskyCredentials {
   identifier: string;
@@ -31,14 +32,11 @@ export class BlueskyBot {
         throw new Error('Not authenticated');
       }
 
-      // Implementation using Bluesky API to send DM
-      // This is a placeholder as the actual API methods may change
       const response = await this.agent.api.app.bsky.feed.post.create(
         { repo: this.agent.session.did },
         {
           text: content,
           createdAt: new Date().toISOString(),
-          // Add proper DM implementation when API stabilizes
         }
       );
       return response.uri;
@@ -51,9 +49,20 @@ export class BlueskyBot {
   async watchDMs() {
     try {
       await this.connect();
-      // Implementation to watch for new DMs
-      // This is a placeholder as the actual API methods may change
-      // Would implement proper notification subscription when available
+      console.log('Watching for Bluesky DMs...');
+
+      // Here we would implement the actual DM watching logic
+      // For now, this is a placeholder as the API is still evolving
+
+      // When a DM is received, we would:
+      // 1. Parse the command from the DM content
+      // 2. Process it with the command handler
+      // const response = await commandHandler.handleCommand(
+      //   'bluesky',
+      //   senderId,
+      //   dmContent
+      // );
+      // 3. Send the response back to the user
     } catch (error) {
       console.error('Failed to watch Bluesky DMs:', error);
       throw error;
