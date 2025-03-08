@@ -10,8 +10,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Settings, type Message } from "@shared/schema";
+import { RefreshCw } from "lucide-react";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -20,8 +21,28 @@ export default function Dashboard() {
     queryKey: ["/api/settings"]
   });
 
-  const { data: messages } = useQuery<Message[]>({ 
+  const { data: messages, refetch: refetchMessages } = useQuery<Message[]>({ 
     queryKey: ["/api/messages", { limit: 5 }]
+  });
+
+  const checkNotifications = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/bluesky/check-notifications", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      toast({
+        title: "Success",
+        description: "Blueskyの通知を確認しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const sendTestDM = useMutation({
@@ -68,8 +89,16 @@ export default function Dashboard() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Bot Status</CardTitle>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => checkNotifications.mutate()}
+              disabled={checkNotifications.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 ${checkNotifications.isPending ? 'animate-spin' : ''}`} />
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -132,9 +161,16 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="md:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Recent Messages</CardTitle>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refetchMessages()}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

@@ -39,6 +39,21 @@ export async function registerRoutes(app: Express) {
     res.json(messages);
   });
 
+  // Check Bluesky notifications manually
+  app.post("/api/bluesky/check-notifications", async (_req, res) => {
+    try {
+      if (!messageRelay.blueskyBot) {
+        return res.status(400).json({ error: "Bluesky bot not configured" });
+      }
+
+      await messageRelay.blueskyBot.checkNotifications();
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error checking Bluesky notifications:', error);
+      res.status(500).json({ error: "Failed to check notifications" });
+    }
+  });
+
   app.post("/api/messages/relay", async (req, res) => {
     try {
       const data = insertMessageSchema.parse(req.body);
