@@ -1,4 +1,4 @@
-import { BskyAgent } from '@atproto/api';
+import { AtpAgent } from '@atproto/api';
 import { commandHandler } from './command-handler';
 import { storage } from '../storage';
 
@@ -8,7 +8,8 @@ interface BlueskyCredentials {
 }
 
 export class BlueskyBot {
-  private agent: BskyAgent;
+  private agent: AtpAgent;
+  private chatAgent: any;
   private credentials: BlueskyCredentials;
   private isWatching: boolean = false;
   private lastLoginAt: number = 0;
@@ -17,7 +18,7 @@ export class BlueskyBot {
   constructor(credentials: BlueskyCredentials) {
     console.log('Initializing BlueskyBot with handle:', credentials.identifier);
     this.credentials = credentials;
-    this.agent = new BskyAgent({ service: 'https://bsky.social' });
+    this.agent = new AtpAgent({ service: 'https://bsky.social' });
   }
 
   private async ensureSession() {
@@ -38,7 +39,10 @@ export class BlueskyBot {
         password: this.credentials.password
       });
       this.lastLoginAt = Date.now();
-      console.log('Successfully connected to Bluesky');
+
+      // チャットサービスにプロキシを設定
+      this.chatAgent = this.agent.withProxy('bsky_chat', 'did:web:api.bsky.chat');
+      console.log('Successfully connected to Bluesky and chat service');
     } catch (error) {
       console.error('Failed to connect to Bluesky:', error);
       throw error;
@@ -51,14 +55,13 @@ export class BlueskyBot {
       console.log(`Sending DM to ${recipient}: ${content}`);
 
       // DMを送信
-      const response = await this.agent.api.app.bsky.feed.threadgate.create({
-        text: content,
-        recipients: [recipient],
-        createdAt: new Date().toISOString()
+      const response = await this.chatAgent.chat.bsky.convo.message({
+        target: recipient,
+        text: content
       });
 
       console.log('DM sent successfully:', response);
-      return response?.uri || null;
+      return response?.data?.messageId || null;
     } catch (error) {
       console.error('Failed to send Bluesky DM:', error);
       return null;
@@ -70,48 +73,48 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log('Checking Bluesky DMs...');
 
-      // DMを取得
-      const response = await this.agent.api.app.bsky.feed.getTimeline({
-        algorithm: 'reverse-chronological',
-        limit: 20,
-      });
+      // 会話リストを取得
+      const response = await this.chatAgent.chat.bsky.convo.listConvos();
+      console.log(`Found ${response.data.convos.length} conversations`);
 
-      console.log(`Found ${response.data.feed.length} timeline items`);
-
-      // DMを処理
-      for (const item of response.data.feed) {
+      // 各会話のメッセージを処理
+      for (const convo of response.data.convos) {
         try {
-          const post = item.post;
-          console.log('Processing post:', {
-            text: post.record.text,
-            author: post.author.handle,
-            type: post.record.$type,
-            isThreaded: !!post.record.reply
+          console.log('Processing conversation:', {
+            id: convo.id,
+            participants: convo.participants
           });
 
-          // DMの場合のみ処理
-          if (post.record.$type === 'app.bsky.feed.threadgate' && post.record.text.startsWith('/')) {
-            console.log('Found DM with command:', {
-              sender: post.author.handle,
-              text: post.record.text
+          const messagesResponse = await this.chatAgent.chat.bsky.convo.getMessages({
+            convoId: convo.id
+          });
+
+          for (const message of messagesResponse.data.messages) {
+            console.log('Processing message:', {
+              sender: message.sender.handle,
+              text: message.text
             });
 
-            const response = await commandHandler.handleCommand(
-              'bluesky',
-              post.author.did,
-              post.record.text
-            );
+            if (message.text.startsWith('/')) {
+              console.log('Processing command from:', message.sender.handle);
+              const response = await commandHandler.handleCommand(
+                'bluesky',
+                message.sender.did,
+                message.text
+              );
 
-            if (response.content) {
-              console.log('Sending response:', response.content);
-              await this.sendDM(post.author.handle, response.content);
+              if (response.content) {
+                console.log('Sending response:', response.content);
+                await this.sendDM(message.sender.handle, response.content);
+              }
             }
           }
         } catch (error) {
-          console.error('Error processing message:', error);
+          console.error('Error processing conversation:', error);
         }
       }
 
+      // 最後の処理時刻を更新
       await storage.updateBotState('bluesky', new Date());
       console.log('Updated bot state timestamp');
 
