@@ -76,35 +76,43 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log('Checking Bluesky notifications...');
 
-      // 自分宛のメンションを含む投稿を取得
-      const timeline = await this.agent.getTimeline({ limit: 20 });
+      // 自分のフィードを取得
+      const myDid = this.agent.session?.did;
+      if (!myDid) {
+        throw new Error('Not authenticated');
+      }
+
+      console.log('Fetching author feed...');
+      const feed = await this.agent.getAuthorFeed({
+        actor: myDid,
+        limit: 20,
+      });
+
+      console.log(`Found ${feed.data.feed.length} posts in feed`);
+
       const myHandle = this.credentials.identifier;
-
-      for (const post of timeline.data.feed) {
+      for (const item of feed.data.feed) {
         try {
-          // メンションを含む投稿を確認
-          if (post.post.record.text.includes(`@${myHandle}`)) {
-            console.log('Found mention:', {
-              author: post.post.author.handle,
-              text: post.post.record.text
-            });
+          const post = item.post;
+          console.log('Checking post:', {
+            text: post.record.text,
+            author: post.author.handle,
+            replyTo: post.record.reply
+          });
 
-            // コマンドを処理
-            if (post.post.record.text.includes('/')) {
-              const command = post.post.record.text.split(' ').find(word => word.startsWith('/'));
-              if (command) {
-                console.log('Processing command:', command);
-                const response = await commandHandler.handleCommand(
-                  'bluesky',
-                  post.post.author.did,
-                  command
-                );
+          // 自分宛のメンションを含むか確認
+          if (post.record.text.includes(`@${myHandle}`) && post.record.text.includes('/')) {
+            console.log('Found command in mention:', post.record.text);
 
-                if (response.content) {
-                  console.log('Sending response:', response.content);
-                  await this.sendDM(post.post.author.handle, response.content);
-                }
-              }
+            const response = await commandHandler.handleCommand(
+              'bluesky',
+              post.author.did,
+              post.record.text
+            );
+
+            if (response.content) {
+              console.log('Sending response:', response.content);
+              await this.sendDM(post.author.handle, response.content);
             }
           }
         } catch (error) {
@@ -131,7 +139,6 @@ export class BlueskyBot {
     try {
       await this.ensureSession();
       console.log('Starting Bluesky DM watch...');
-      this.isWatching = true;
 
       // 前回の処理時刻を取得
       try {
