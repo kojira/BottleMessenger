@@ -73,65 +73,67 @@ export class BlueskyBot {
   async checkNotifications() {
     try {
       await this.ensureSession();
-      console.log('Checking Bluesky notifications...');
+      console.log('Checking Bluesky messages...');
 
-      const myHandle = this.credentials.identifier;
+      // メンションを含む投稿を取得
+      const myDid = this.agent.session?.did;
+      if (!myDid) {
+        throw new Error('Not authenticated');
+      }
+
+      const feed = await this.agent.api.app.bsky.feed.getAuthorFeed({
+        actor: myDid,
+        limit: 20,
+      });
+
+      console.log(`Found ${feed.data.feed.length} feed items`);
 
       // 通知を取得
-      console.log('Fetching notifications...');
-      const notifications = await this.agent.listNotifications({
+      const notifications = await this.agent.api.app.bsky.notification.listNotifications({
         limit: 20
       });
 
       console.log(`Found ${notifications.data.notifications.length} notifications`);
 
-      // 通知を古い順に処理
-      for (const notification of [...notifications.data.notifications].reverse()) {
+      // 通知とフィードの両方から自分宛のメッセージを処理
+      const items = [
+        ...feed.data.feed.map(item => ({
+          type: 'feed',
+          text: item.post.record.text,
+          author: item.post.author,
+          createdAt: item.post.record.createdAt
+        })),
+        ...notifications.data.notifications.map(notif => ({
+          type: 'notification',
+          text: notif.record.text,
+          author: notif.author,
+          createdAt: notif.record.createdAt
+        }))
+      ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      for (const item of items) {
         try {
-          console.log('Processing notification:', {
-            reason: notification.reason,
-            author: notification.author.handle,
-            uri: notification.uri
+          console.log('Processing message:', {
+            type: item.type,
+            author: item.author.handle,
+            text: item.text
           });
 
-          // 投稿の詳細を取得
-          const postView = await this.agent.getPostThread({
-            uri: notification.uri,
-            depth: 0
-          });
+          if (item.text.startsWith('/')) {
+            console.log('Processing command from:', item.author.handle);
+            const response = await commandHandler.handleCommand(
+              'bluesky',
+              item.author.did,
+              item.text
+            );
 
-          if (!postView.success || !postView.data.thread.post) {
-            console.log('Failed to get post details');
-            continue;
-          }
-
-          const post = postView.data.thread.post;
-          console.log('Post details:', {
-            text: post.record.text,
-            author: post.author.handle,
-            replyTo: post.record.reply
-          });
-
-          // メンションを含むポストのみを処理
-          if (post.record.text.includes(`@${myHandle}`)) {
-            console.log('Found mention:', post.record.text);
-
-            if (post.record.text.includes('/')) {
-              console.log('Processing command from:', post.author.handle);
-              const response = await commandHandler.handleCommand(
-                'bluesky',
-                post.author.did,
-                post.record.text
-              );
-
-              if (response.content) {
-                console.log('Sending response:', response.content);
-                await this.sendDM(post.author.handle, response.content);
-              }
+            if (response.content) {
+              console.log('Sending response:', response.content);
+              await this.sendDM(item.author.handle, response.content);
             }
           }
         } catch (error) {
-          console.error('Error processing notification:', error);
+          console.error('Error processing message:', error);
         }
       }
 
@@ -140,7 +142,7 @@ export class BlueskyBot {
       console.log('Updated bot state timestamp');
 
     } catch (error) {
-      console.error('Failed to check Bluesky notifications:', error);
+      console.error('Failed to check Bluesky messages:', error);
       throw error;
     }
   }
