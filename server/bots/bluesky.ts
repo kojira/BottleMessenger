@@ -13,7 +13,7 @@ export class BlueskyBot {
   private isWatching: boolean = false;
   private watchInterval: NodeJS.Timeout | null = null;
   private lastLoginAt: number = 0;
-  private lastSeenAt: string | undefined;
+  private lastNotificationId: string | undefined;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分のクールダウン
 
   constructor(credentials: BlueskyCredentials) {
@@ -24,11 +24,9 @@ export class BlueskyBot {
 
   private async ensureSession() {
     if (!this.agent.session) {
-      // 初回ログインまたはセッション切れの場合
       console.log('No active session, logging in...');
       await this.connect();
     } else if (Date.now() - this.lastLoginAt > this.LOGIN_COOLDOWN) {
-      // セッションは存在するが、クールダウン時間を超えている場合は再ログイン
       console.log('Session expired, refreshing...');
       await this.connect();
     }
@@ -95,8 +93,11 @@ export class BlueskyBot {
       try {
         const state = await storage.getBotState('bluesky');
         if (state) {
-          this.lastSeenAt = state.lastProcessedAt.toISOString();
-          console.log('Restored last processed time:', this.lastSeenAt);
+          const lastProcessed = new Date(state.lastProcessedAt);
+          console.log('Restored last processed time:', lastProcessed.toISOString());
+          // 最後の処理時刻の5分前から取得（念のため）
+          lastProcessed.setMinutes(lastProcessed.getMinutes() - 5);
+          this.lastNotificationId = lastProcessed.toISOString();
         } else {
           console.log('No previous state found, starting fresh');
         }
@@ -110,54 +111,56 @@ export class BlueskyBot {
         try {
           await this.ensureSession();
           console.log('Checking for new Bluesky notifications...');
+
+          // 通知を新しい順に取得
           const response = await this.agent.listNotifications({
             limit: 20,
-            seenAt: this.lastSeenAt
+            cursor: this.lastNotificationId
           });
 
           if (response.data.notifications.length > 0) {
             console.log(`Found ${response.data.notifications.length} new notifications`);
-          }
 
-          for (const notification of response.data.notifications) {
-            try {
-              // メンションを含む投稿を検出
-              if (notification.reason === 'mention') {
-                console.log('Processing notification:', {
-                  type: notification.reason,
-                  author: notification.author.handle,
-                  record: notification.record
-                });
+            // 通知を古い順に処理
+            for (const notification of [...response.data.notifications].reverse()) {
+              try {
+                // メンションを含む投稿を検出
+                if (notification.reason === 'mention') {
+                  console.log('Processing notification:', {
+                    type: notification.reason,
+                    author: notification.author.handle,
+                    record: notification.record
+                  });
 
-                const post = notification.record as any;
-                if (post.text && post.text.startsWith('/')) {
-                  console.log('Received command from:', notification.author.handle);
-                  console.log('Command content:', post.text);
+                  const post = notification.record as any;
+                  if (post.text && post.text.startsWith('/')) {
+                    console.log('Received command from:', notification.author.handle);
+                    console.log('Command content:', post.text);
 
-                  const response = await commandHandler.handleCommand(
-                    'bluesky',
-                    notification.author.did,
-                    post.text
-                  );
+                    const response = await commandHandler.handleCommand(
+                      'bluesky',
+                      notification.author.did,
+                      post.text
+                    );
 
-                  if (response.content) {
-                    console.log('Sending response:', response.content);
-                    await this.sendDM(notification.author.handle, response.content);
+                    if (response.content) {
+                      console.log('Sending response:', response.content);
+                      await this.sendDM(notification.author.handle, response.content);
+                    }
                   }
                 }
+              } catch (error) {
+                console.error('Error processing notification:', error);
               }
-            } catch (error) {
-              console.error('Error processing notification:', error);
             }
-          }
 
-          // Update seen marker and save to database
-          if (response.data.notifications.length > 0) {
-            this.lastSeenAt = new Date().toISOString();
-            await this.agent.updateSeenNotifications();
+            // 最後の通知のIDを保存
+            this.lastNotificationId = response.data.notifications[0].uri;
+
+            // データベースに最終処理時刻を保存
             try {
-              await storage.updateBotState('bluesky', new Date(this.lastSeenAt));
-              console.log('Updated seen notifications timestamp:', this.lastSeenAt);
+              await storage.updateBotState('bluesky', new Date());
+              console.log('Updated bot state timestamp');
             } catch (error) {
               console.error('Error updating bot state:', error);
             }
