@@ -72,11 +72,11 @@ export class NostrBot {
       const eventId = getEventHash(event);
       const signedEvent = { ...event, id: eventId };
 
-      // Try each relay until successful
+      // Try publishing to each relay until successful
       for (const url of this.relayUrls) {
         try {
           console.log(`Publishing to relay: ${url}`);
-          await this.pool.publish(url, signedEvent);
+          const pub = await this.pool.publish(url, signedEvent);
           console.log(`Successfully published to ${url}`);
           return eventId;
         } catch (error) {
@@ -119,44 +119,43 @@ export class NostrBot {
           console.log(`Creating subscription on relay: ${url}`);
           const sub = this.pool.sub(
             [url],
-            [filter],
-            {
-              onEvent: async (event: NostrEvent) => {
-                try {
-                  // Skip own messages
-                  if (event.pubkey === pubkey) {
-                    console.log('Skipping own message');
-                    return;
-                  }
-
-                  console.log('Received encrypted DM from:', event.pubkey);
-
-                  const content = await nip04.decrypt(
-                    privateKey,
-                    event.pubkey,
-                    event.content
-                  );
-
-                  console.log('Decrypted DM content:', content);
-
-                  // Process command and send response
-                  const response = await commandHandler.handleCommand(
-                    'nostr',
-                    event.pubkey,
-                    content
-                  );
-
-                  if (response.content) {
-                    console.log('Sending response:', response.content);
-                    await this.sendDM(event.pubkey, response.content);
-                    console.log('Response sent successfully');
-                  }
-                } catch (error) {
-                  console.error('Failed to process DM:', error);
-                }
-              }
-            }
+            [filter]
           );
+
+          sub.on('event', async (event: NostrEvent) => {
+            try {
+              // Skip own messages
+              if (event.pubkey === pubkey) {
+                console.log('Skipping own message');
+                return;
+              }
+
+              console.log('Received encrypted DM from:', event.pubkey);
+
+              const content = await nip04.decrypt(
+                privateKey,
+                event.pubkey,
+                event.content
+              );
+
+              console.log('Decrypted DM content:', content);
+
+              // Process command and send response
+              const response = await commandHandler.handleCommand(
+                'nostr',
+                event.pubkey,
+                content
+              );
+
+              if (response.content) {
+                console.log('Sending response:', response.content);
+                await this.sendDM(event.pubkey, response.content);
+                console.log('Response sent successfully');
+              }
+            } catch (error) {
+              console.error('Failed to process DM:', error);
+            }
+          });
 
           this.activeSubscriptions.push(sub);
           console.log(`Subscription created on ${url}`);
@@ -189,11 +188,5 @@ export class NostrBot {
     this.isWatching = false;
     this.closeSubscriptions();
     await this.pool.close();
-  }
-
-  private hexToBytes(hex: string): Uint8Array {
-    return new Uint8Array(
-      hex.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
-    );
   }
 }
