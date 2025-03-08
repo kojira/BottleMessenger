@@ -59,24 +59,16 @@ export class BlueskyBot {
 
       console.log(`Sending DM to ${recipient}: ${content}`);
 
-      // DMを送信
-      const response = await this.agent.com.atproto.repo.createRecord({
-        repo: this.agent.session.did,
-        collection: 'app.bsky.feed.post',
-        record: {
-          text: content,
-          createdAt: new Date().toISOString(),
-          facets: [],
-          langs: ['ja'],
-          reply: undefined,
-          embed: undefined,
-          labels: undefined
-        }
+      // メンションを含むDMを作成
+      const response = await this.agent.post({
+        text: `@${recipient} ${content}`,
+        reply: undefined,
+        embed: undefined,
+        langs: ['ja']
       });
 
-      const uri = response.uri as string;
-      console.log('DM sent successfully:', uri);
-      return uri;
+      console.log('DM sent successfully:', response.uri);
+      return response.uri;
     } catch (error) {
       if (error instanceof Error && error.message.includes('rate limit')) {
         console.log('Hit rate limit, waiting before retry...');
