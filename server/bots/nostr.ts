@@ -1,5 +1,10 @@
 import { SimplePool, getPublicKey, nip04, getEventHash } from 'nostr-tools';
 import { commandHandler } from './command-handler';
+import WebSocket from 'ws';
+import { WebSocketImplementation } from 'nostr-tools';
+
+// Set WebSocket implementation for nostr-tools
+(globalThis as any).WebSocket = WebSocket as WebSocketImplementation;
 
 interface NostrCredentials {
   privateKey: string;
@@ -18,6 +23,9 @@ export class NostrBot {
   private credentials: NostrCredentials;
   private pool: SimplePool;
   private relayUrls = ['wss://relay.damus.io', 'wss://nos.lol'];
+  private activeSubscriptions: ReturnType<SimplePool['sub']>[] = [];
+  private reconnectInterval: NodeJS.Timeout | null = null;
+  private isWatching = false;
 
   constructor(credentials: NostrCredentials) {
     this.credentials = credentials;
@@ -26,10 +34,18 @@ export class NostrBot {
 
   private async connectToRelay(): Promise<void> {
     try {
-      await this.pool.ensureRelay(this.relayUrls[0]);
+      // Try primary relay first
+      await this.pool.ensureRelay(this.relayUrls[0], { timeout: 5000 });
+      console.log('Connected to primary relay');
     } catch (error) {
       console.error('Failed to connect to primary relay, trying backup');
-      await this.pool.ensureRelay(this.relayUrls[1]);
+      try {
+        await this.pool.ensureRelay(this.relayUrls[1], { timeout: 5000 });
+        console.log('Connected to backup relay');
+      } catch (error) {
+        console.error('Failed to connect to backup relay');
+        throw error;
+      }
     }
   }
 
@@ -37,7 +53,6 @@ export class NostrBot {
     try {
       await this.connectToRelay();
 
-      // Convert privateKey from hex to Uint8Array
       const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
       const pubkey = getPublicKey(privateKeyBytes);
 
@@ -55,17 +70,16 @@ export class NostrBot {
         content: encryptedContent
       };
 
-      // Add required fields for event ID
       const eventId = getEventHash(event);
       const signedEvent = { ...event, id: eventId };
 
-      // Publish to relays
       try {
         await Promise.any(
-          this.relayUrls.map(url => 
+          this.relayUrls.map(url =>
             this.pool.publish(url, signedEvent)
           )
         );
+        console.log('DM sent successfully');
         return eventId;
       } catch (error) {
         console.error('Failed to publish to any relay:', error);
@@ -78,14 +92,23 @@ export class NostrBot {
   }
 
   async watchDMs(): Promise<void> {
+    if (this.isWatching) {
+      console.log('Already watching for DMs');
+      return;
+    }
+
     try {
       await this.connectToRelay();
+      console.log('Starting to watch for Nostr DMs...');
 
-      // Convert privateKey from hex to Uint8Array
       const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
       const pubkey = getPublicKey(privateKeyBytes);
 
-      this.pool.sub(
+      // Close any existing subscriptions
+      this.closeSubscriptions();
+
+      // Create new subscription
+      const sub = this.pool.sub(
         this.relayUrls,
         [
           {
@@ -104,6 +127,8 @@ export class NostrBot {
                 event.content
               );
 
+              console.log('Received DM from:', event.pubkey);
+
               // Process command and send response
               const response = await commandHandler.handleCommand(
                 'nostr',
@@ -117,14 +142,70 @@ export class NostrBot {
             } catch (error) {
               console.error('Failed to process DM:', error);
             }
+          },
+          oneose: () => {
+            console.log('Successfully subscribed to relay');
+          },
+          ondone: () => {
+            console.log('Subscription closed');
+            // Attempt to reconnect if still watching
+            if (this.isWatching) {
+              this.reconnect();
+            }
           }
         }
       );
 
+      this.activeSubscriptions.push(sub);
+      this.isWatching = true;
+
+      // Setup reconnection handler
+      this.setupReconnect();
+
     } catch (error) {
       console.error('Failed to watch Nostr DMs:', error);
+      this.isWatching = false;
       throw error;
     }
+  }
+
+  private setupReconnect(): void {
+    if (this.reconnectInterval) {
+      clearInterval(this.reconnectInterval);
+    }
+
+    this.reconnectInterval = setInterval(() => {
+      this.reconnect();
+    }, 60000); // Reconnect every minute if needed
+  }
+
+  private async reconnect(): Promise<void> {
+    try {
+      await this.connectToRelay();
+      console.log('Reconnected to relay');
+    } catch (error) {
+      console.error('Failed to reconnect:', error);
+    }
+  }
+
+  private closeSubscriptions(): void {
+    this.activeSubscriptions.forEach(sub => {
+      try {
+        sub.unsub();
+      } catch (error) {
+        console.error('Error closing subscription:', error);
+      }
+    });
+    this.activeSubscriptions = [];
+  }
+
+  async cleanup(): Promise<void> {
+    this.isWatching = false;
+    if (this.reconnectInterval) {
+      clearInterval(this.reconnectInterval);
+    }
+    this.closeSubscriptions();
+    await this.pool.close();
   }
 
   private hexToBytes(hex: string): Uint8Array {
