@@ -1,7 +1,6 @@
-import { SimplePool, getPublicKey, nip04, getEventHash } from 'nostr-tools';
+import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
-import { type Filter } from 'nostr-tools';
 
 // Set WebSocket implementation for nostr-tools
 (globalThis as any).WebSocket = WebSocket;
@@ -17,6 +16,7 @@ interface NostrEvent {
   tags: string[][];
   content: string;
   id?: string;
+  sig?: string;
 }
 
 export class NostrBot {
@@ -69,23 +69,20 @@ export class NostrBot {
         content: encryptedContent
       };
 
-      const eventId = getEventHash(event);
-      const signedEvent = { ...event, id: eventId };
+      event.id = getEventHash(event);
+      event.sig = signEvent(event, privateKey);
 
-      // Try publishing to each relay until successful
-      for (const url of this.relayUrls) {
-        try {
-          console.log(`Publishing to relay: ${url}`);
-          const pub = await this.pool.publish(url, signedEvent);
-          console.log(`Successfully published to ${url}`);
-          return eventId;
-        } catch (error) {
-          console.error(`Failed to publish to ${url}:`, error);
-          continue;
-        }
+      console.log('Attempting to publish event:', { ...event, content: '[encrypted]' });
+
+      // Publish to relay
+      try {
+        await this.pool.publish(this.relayUrls, event);
+        console.log('Successfully published DM');
+        return event.id;
+      } catch (error) {
+        console.error('Failed to publish DM:', error);
+        return null;
       }
-
-      throw new Error('Failed to publish to any relay');
     } catch (error) {
       console.error('Failed to send Nostr DM:', error);
       return null;
@@ -107,63 +104,51 @@ export class NostrBot {
 
       console.log('Watching for DMs to pubkey:', pubkey);
 
-      // Create subscription filter
       const filter: Filter = {
         kinds: [4],
         '#p': [pubkey]
       };
 
-      // Create subscription for each relay
-      for (const url of this.relayUrls) {
+      // Create subscription
+      console.log('Creating subscription with filter:', filter);
+      const sub = this.pool.sub(this.relayUrls, [filter]);
+
+      sub.on('event', async (event: NostrEvent) => {
         try {
-          console.log(`Creating subscription on relay: ${url}`);
-          const sub = this.pool.sub(
-            [url],
-            [filter]
+          // Skip own messages
+          if (event.pubkey === pubkey) {
+            console.log('Skipping own message');
+            return;
+          }
+
+          console.log('Received encrypted DM from:', event.pubkey);
+
+          const content = await nip04.decrypt(
+            privateKey,
+            event.pubkey,
+            event.content
           );
 
-          sub.on('event', async (event: NostrEvent) => {
-            try {
-              // Skip own messages
-              if (event.pubkey === pubkey) {
-                console.log('Skipping own message');
-                return;
-              }
+          console.log('Decrypted DM content:', content);
 
-              console.log('Received encrypted DM from:', event.pubkey);
+          // Process command and send response
+          const response = await commandHandler.handleCommand(
+            'nostr',
+            event.pubkey,
+            content
+          );
 
-              const content = await nip04.decrypt(
-                privateKey,
-                event.pubkey,
-                event.content
-              );
-
-              console.log('Decrypted DM content:', content);
-
-              // Process command and send response
-              const response = await commandHandler.handleCommand(
-                'nostr',
-                event.pubkey,
-                content
-              );
-
-              if (response.content) {
-                console.log('Sending response:', response.content);
-                await this.sendDM(event.pubkey, response.content);
-                console.log('Response sent successfully');
-              }
-            } catch (error) {
-              console.error('Failed to process DM:', error);
-            }
-          });
-
-          this.activeSubscriptions.push(sub);
-          console.log(`Subscription created on ${url}`);
+          if (response.content) {
+            console.log('Sending response:', response.content);
+            await this.sendDM(event.pubkey, response.content);
+            console.log('Response sent successfully');
+          }
         } catch (error) {
-          console.error(`Failed to create subscription on ${url}:`, error);
+          console.error('Failed to process DM:', error);
         }
-      }
+      });
 
+      this.activeSubscriptions.push(sub);
       this.isWatching = true;
       console.log('Nostr DM watch started successfully');
     } catch (error) {
