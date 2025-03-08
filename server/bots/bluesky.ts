@@ -71,113 +71,51 @@ export class BlueskyBot {
     }
   }
 
-  private async decryptDM(notification: any): Promise<string | null> {
-    try {
-      console.log('Checking notification record:', {
-        type: notification.reason,
-        uri: notification.uri,
-        cid: notification.cid,
-        author: notification.author.handle
-      });
-
-      if (!notification.record) {
-        console.log('No record found in notification');
-        return null;
-      }
-
-      console.log('Record details:', {
-        type: notification.record.$type,
-        text: notification.record.text,
-        createdAt: notification.record.createdAt
-      });
-
-      // 投稿の詳細を取得
-      if (notification.uri) {
-        try {
-          const postView = await this.agent.getPostThread({
-            uri: notification.uri,
-            depth: 0
-          });
-
-          if (postView.success) {
-            const post = postView.data.thread.post;
-            console.log('Post content:', {
-              text: post.record.text,
-              hasReply: !!post.record.reply,
-              createdAt: post.record.createdAt
-            });
-            return post.record.text;
-          }
-        } catch (error) {
-          console.error('Failed to fetch post details:', error);
-        }
-      }
-
-      // 投稿の詳細が取得できない場合は、通知のレコードから直接取得を試みる
-      if (notification.record.$type === 'app.bsky.feed.post') {
-        return notification.record.text;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Failed to decrypt DM:', error);
-      return null;
-    }
-  }
-
   async checkNotifications() {
     try {
       await this.ensureSession();
       console.log('Checking Bluesky notifications...');
 
-      const params: any = {
-        limit: 20
-      };
+      // 自分宛のメンションを含む投稿を取得
+      const timeline = await this.agent.getTimeline({ limit: 20 });
+      const myHandle = this.credentials.identifier;
 
-      const response = await this.agent.listNotifications(params);
-
-      if (response.data.notifications.length > 0) {
-        console.log(`Found ${response.data.notifications.length} notifications`);
-
-        // 通知を古い順に処理
-        for (const notification of [...response.data.notifications].reverse()) {
-          try {
-            // DMとメンションの両方をチェック
-            console.log('Processing notification:', {
-              type: notification.reason,
-              author: notification.author.handle,
-              isRead: notification.isRead,
-              indexedAt: notification.indexedAt
+      for (const post of timeline.data.feed) {
+        try {
+          // メンションを含む投稿を確認
+          if (post.post.record.text.includes(`@${myHandle}`)) {
+            console.log('Found mention:', {
+              author: post.post.author.handle,
+              text: post.post.record.text
             });
 
-            const message = await this.decryptDM(notification);
-            if (message) {
-              console.log('Successfully decoded message:', message);
-
-              if (message.startsWith('/')) {
-                console.log('Processing command from:', notification.author.handle);
+            // コマンドを処理
+            if (post.post.record.text.includes('/')) {
+              const command = post.post.record.text.split(' ').find(word => word.startsWith('/'));
+              if (command) {
+                console.log('Processing command:', command);
                 const response = await commandHandler.handleCommand(
                   'bluesky',
-                  notification.author.did,
-                  message
+                  post.post.author.did,
+                  command
                 );
 
                 if (response.content) {
                   console.log('Sending response:', response.content);
-                  await this.sendDM(notification.author.handle, response.content);
+                  await this.sendDM(post.post.author.handle, response.content);
                 }
               }
             }
-          } catch (error) {
-            console.error('Error processing notification:', error);
           }
+        } catch (error) {
+          console.error('Error processing post:', error);
         }
-
-        // 最後の通知のIDを保存
-        this.lastNotificationId = response.data.notifications[0].uri;
-        await storage.updateBotState('bluesky', new Date());
-        console.log('Updated bot state timestamp');
       }
+
+      // 最後の処理時刻を保存
+      await storage.updateBotState('bluesky', new Date());
+      console.log('Updated bot state timestamp');
+
     } catch (error) {
       console.error('Failed to check Bluesky notifications:', error);
       throw error;
