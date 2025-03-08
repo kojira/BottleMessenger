@@ -49,15 +49,30 @@ export class BlueskyBot {
     }
   }
 
-  async sendDM(recipient: string, content: string): Promise<string | null> {
+  async sendDM(recipientHandle: string, content: string): Promise<string | null> {
     try {
       await this.ensureSession();
-      console.log(`Sending DM to ${recipient}: ${content}`);
+      console.log(`Sending DM to ${recipientHandle}: ${content}`);
 
-      // DMを送信
-      const response = await this.chatAgent.chat.bsky.convo.message({
-        target: recipient,
-        text: content
+      // 受信者のプロフィールを取得
+      console.log('Getting recipient profile...');
+      const profileResponse = await this.agent.getProfile({ actor: recipientHandle });
+      const recipientDid = profileResponse.data.did;
+      console.log('Recipient DID:', recipientDid);
+
+      // 会話を取得または作成
+      console.log('Getting or creating conversation...');
+      const convoResponse = await this.chatAgent.chat.bsky.convo.getConvoForMembers({ 
+        members: [recipientDid] 
+      });
+      const convoId = convoResponse.data.convo.id;
+      console.log('Conversation ID:', convoId);
+
+      // メッセージを送信
+      console.log('Sending message...');
+      const response = await this.chatAgent.chat.bsky.convo.sendMessage({
+        convoId,
+        message: { text: content }
       });
 
       console.log('DM sent successfully:', response);
@@ -148,7 +163,9 @@ export class BlueskyBot {
 
       // 初回の通知チェック
       await this.checkNotifications();
-      console.log('Bluesky DM watch started');
+      console.log('Initial DM check completed');
+
+      this.isWatching = true;
     } catch (error) {
       console.error('Failed to start Bluesky DM watch:', error);
       this.isWatching = false;
