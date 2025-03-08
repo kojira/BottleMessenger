@@ -48,18 +48,27 @@ export class BlueskyBot {
   async sendDM(recipient: string, content: string): Promise<string | null> {
     try {
       await this.ensureSession();
-
-      if (!this.agent.session?.did) {
-        throw new Error('Not authenticated');
-      }
-
       console.log(`Sending DM to ${recipient}: ${content}`);
 
-      const response = await this.agent.post({
-        text: `@${recipient} ${content}`,
-        reply: undefined,
-        embed: undefined,
-        langs: ['ja']
+      // 送信先のプロファイルを取得してDIDを取得
+      const profile = await this.agent.getProfile({ actor: recipient });
+      if (!profile.success) {
+        throw new Error('Failed to get recipient profile');
+      }
+
+      // DMとして送信
+      const response = await this.agent.com.atproto.repo.createRecord({
+        repo: this.agent.session?.did,
+        collection: 'app.bsky.feed.post',
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: content,
+          createdAt: new Date().toISOString(),
+          reply: undefined,
+          embed: undefined,
+          facets: undefined,
+          labels: undefined,
+        }
       });
 
       console.log('DM sent successfully:', response.uri);
@@ -75,61 +84,34 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log('Checking Bluesky messages...');
 
-      // メンションを含む投稿を取得
-      const myDid = this.agent.session?.did;
-      if (!myDid) {
-        throw new Error('Not authenticated');
-      }
-
-      const feed = await this.agent.api.app.bsky.feed.getAuthorFeed({
-        actor: myDid,
+      // DMを取得
+      const response = await this.agent.api.app.bsky.feed.getAuthorFeed({
+        actor: this.agent.session?.did,
         limit: 20,
       });
 
-      console.log(`Found ${feed.data.feed.length} feed items`);
+      console.log(`Found ${response.data.feed.length} messages`);
 
-      // 通知を取得
-      const notifications = await this.agent.api.app.bsky.notification.listNotifications({
-        limit: 20
-      });
-
-      console.log(`Found ${notifications.data.notifications.length} notifications`);
-
-      // 通知とフィードの両方から自分宛のメッセージを処理
-      const items = [
-        ...feed.data.feed.map(item => ({
-          type: 'feed',
-          text: item.post.record.text,
-          author: item.post.author,
-          createdAt: item.post.record.createdAt
-        })),
-        ...notifications.data.notifications.map(notif => ({
-          type: 'notification',
-          text: notif.record.text,
-          author: notif.author,
-          createdAt: notif.record.createdAt
-        }))
-      ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-      for (const item of items) {
+      for (const item of response.data.feed) {
         try {
+          const post = item.post;
           console.log('Processing message:', {
-            type: item.type,
-            author: item.author.handle,
-            text: item.text
+            text: post.record.text,
+            author: post.author.handle,
+            type: post.record.$type
           });
 
-          if (item.text.startsWith('/')) {
-            console.log('Processing command from:', item.author.handle);
+          if (post.record.text.startsWith('/')) {
+            console.log('Processing command from:', post.author.handle);
             const response = await commandHandler.handleCommand(
               'bluesky',
-              item.author.did,
-              item.text
+              post.author.did,
+              post.record.text
             );
 
             if (response.content) {
               console.log('Sending response:', response.content);
-              await this.sendDM(item.author.handle, response.content);
+              await this.sendDM(post.author.handle, response.content);
             }
           }
         } catch (error) {
@@ -137,7 +119,6 @@ export class BlueskyBot {
         }
       }
 
-      // 処理時刻を更新
       await storage.updateBotState('bluesky', new Date());
       console.log('Updated bot state timestamp');
 
