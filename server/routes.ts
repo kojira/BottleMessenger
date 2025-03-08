@@ -52,5 +52,57 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Test DM endpoint
+  app.post("/api/test/dm", async (req, res) => {
+    try {
+      const { platform, content } = req.body;
+
+      if (!platform || !content) {
+        return res.status(400).json({ error: "Platform and content are required" });
+      }
+
+      if (platform === "bluesky") {
+        const settings = await storage.getSettings();
+        if (!settings?.blueskyHandle) {
+          return res.status(400).json({ error: "Bluesky handle not configured" });
+        }
+        await messageRelay.relayMessage({
+          sourcePlatform: "test",
+          sourceId: "test",
+          sourceUser: settings.blueskyHandle,
+          targetPlatform: "bluesky",
+          content,
+          status: "pending"
+        });
+      } else if (platform === "nostr") {
+        const settings = await storage.getSettings();
+        if (!settings?.nostrPrivateKey) {
+          return res.status(400).json({ error: "Nostr private key not configured" });
+        }
+        await messageRelay.relayMessage({
+          sourcePlatform: "test",
+          sourceId: "test",
+          sourceUser: getPublicKey(settings.nostrPrivateKey),
+          targetPlatform: "nostr",
+          content,
+          status: "pending"
+        });
+      } else {
+        return res.status(400).json({ error: "Invalid platform" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Test DM error:', error);
+      res.status(500).json({ error: "Failed to send test DM" });
+    }
+  });
+
   return server;
+}
+
+function getPublicKey(privateKey: string): string {
+  //Implementation to get public key from private key.  This is a placeholder and needs actual implementation.
+  //This example assumes a simple return for demonstration.  A proper cryptographic library should be used in a production environment.
+  return "placeholderPublicKey";
 }
