@@ -9,6 +9,8 @@ interface BlueskyCredentials {
 export class BlueskyBot {
   private agent: BskyAgent;
   private credentials: BlueskyCredentials;
+  private isWatching: boolean = false;
+  private watchInterval: NodeJS.Timeout | null = null;
 
   constructor(credentials: BlueskyCredentials) {
     this.credentials = credentials;
@@ -17,10 +19,17 @@ export class BlueskyBot {
 
   async connect() {
     if (!this.agent.session) {
-      await this.agent.login({
-        identifier: this.credentials.identifier,
-        password: this.credentials.password
-      });
+      try {
+        console.log('Connecting to Bluesky...', this.credentials.identifier);
+        await this.agent.login({
+          identifier: this.credentials.identifier,
+          password: this.credentials.password
+        });
+        console.log('Successfully connected to Bluesky');
+      } catch (error) {
+        console.error('Failed to connect to Bluesky:', error);
+        throw error;
+      }
     }
   }
 
@@ -32,6 +41,8 @@ export class BlueskyBot {
         throw new Error('Not authenticated');
       }
 
+      console.log(`Sending DM to ${recipient}: ${content}`);
+
       const response = await this.agent.api.app.bsky.feed.post.create(
         { repo: this.agent.session.did },
         {
@@ -39,6 +50,8 @@ export class BlueskyBot {
           createdAt: new Date().toISOString(),
         }
       );
+
+      console.log('DM sent successfully');
       return response.uri;
     } catch (error) {
       console.error('Failed to send Bluesky DM:', error);
@@ -47,25 +60,67 @@ export class BlueskyBot {
   }
 
   async watchDMs() {
+    if (this.isWatching) {
+      console.log('Already watching Bluesky DMs');
+      return;
+    }
+
     try {
       await this.connect();
-      console.log('Watching for Bluesky DMs...');
+      console.log('Starting Bluesky DM watch...');
+      this.isWatching = true;
 
-      // Here we would implement the actual DM watching logic
-      // For now, this is a placeholder as the API is still evolving
+      // Poll for new notifications every 30 seconds
+      this.watchInterval = setInterval(async () => {
+        try {
+          const notifications = await this.agent.api.app.bsky.notification.listNotifications();
 
-      // When a DM is received, we would:
-      // 1. Parse the command from the DM content
-      // 2. Process it with the command handler
-      // const response = await commandHandler.handleCommand(
-      //   'bluesky',
-      //   senderId,
-      //   dmContent
-      // );
-      // 3. Send the response back to the user
+          for (const notification of notifications.data.notifications) {
+            // Check if it's a direct message
+            if (notification.reason === 'mention' && !notification.isRead) {
+              const post = notification.record as any;
+              if (post.text && post.text.startsWith('/')) {
+                console.log('Received command from:', notification.author.handle);
+
+                const response = await commandHandler.handleCommand(
+                  'bluesky',
+                  notification.author.did,
+                  post.text
+                );
+
+                if (response.content) {
+                  await this.sendDM(notification.author.handle, response.content);
+                }
+              }
+            }
+          }
+
+          // Mark notifications as read
+          if (notifications.data.notifications.length > 0) {
+            await this.agent.api.app.bsky.notification.updateSeen({
+              seenAt: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          console.error('Error checking Bluesky notifications:', error);
+        }
+      }, 30000);
+
+      console.log('Bluesky DM watch started');
     } catch (error) {
-      console.error('Failed to watch Bluesky DMs:', error);
+      console.error('Failed to start Bluesky DM watch:', error);
+      this.isWatching = false;
+      if (this.watchInterval) {
+        clearInterval(this.watchInterval);
+      }
       throw error;
+    }
+  }
+
+  cleanup() {
+    this.isWatching = false;
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
     }
   }
 }

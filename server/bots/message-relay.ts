@@ -8,25 +8,51 @@ export class MessageRelay {
   private nostrBot: NostrBot | null = null;
 
   async init() {
-    const settings = await storage.getSettings();
-    if (settings && settings.enabled === 'true') {
-      this.setupBots(settings);
+    try {
+      console.log('Initializing message relay...');
+      const settings = await storage.getSettings();
+
+      if (!settings) {
+        console.log('No settings found, waiting for configuration...');
+        return;
+      }
+
+      console.log('Setting up bots with configured credentials...');
+      await this.setupBots(settings);
+
+      // Start watching for DMs
+      if (this.blueskyBot) {
+        console.log('Starting Bluesky DM watch...');
+        this.blueskyBot.watchDMs().catch(console.error);
+      }
+
+      if (this.nostrBot) {
+        console.log('Starting Nostr DM watch...');
+        this.nostrBot.watchDMs().catch(console.error);
+      }
+
+      console.log('Message relay initialization completed');
+    } catch (error) {
+      console.error('Failed to initialize message relay:', error);
+      throw error;
     }
   }
 
-  private setupBots(settings: Settings) {
-    this.blueskyBot = new BlueskyBot({
-      identifier: settings.blueskyHandle,
-      password: settings.blueskyPassword
-    });
+  private async setupBots(settings: Settings) {
+    if (settings.blueskyHandle && settings.blueskyPassword) {
+      console.log('Configuring Bluesky bot...');
+      this.blueskyBot = new BlueskyBot({
+        identifier: settings.blueskyHandle,
+        password: settings.blueskyPassword
+      });
+    }
 
-    this.nostrBot = new NostrBot({
-      privateKey: settings.nostrPrivateKey
-    });
-
-    // Start watching for DMs
-    if (this.blueskyBot) this.blueskyBot.watchDMs().catch(console.error);
-    if (this.nostrBot) this.nostrBot.watchDMs().catch(console.error);
+    if (settings.nostrPrivateKey) {
+      console.log('Configuring Nostr bot...');
+      this.nostrBot = new NostrBot({
+        privateKey: settings.nostrPrivateKey
+      });
+    }
   }
 
   async relayMessage(message: InsertMessage) {
