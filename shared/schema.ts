@@ -55,7 +55,7 @@ export const messages = pgTable("messages", {
 
 export const botState = pgTable("bot_state", {
   id: serial("id").primaryKey(),
-  platform: text("platform").notNull(),
+  platform: text("platform").notNull().unique(),
   lastProcessedAt: timestamp("last_processed_at").notNull(),
 });
 

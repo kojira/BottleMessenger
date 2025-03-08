@@ -1,6 +1,6 @@
 import { BskyAgent } from '@atproto/api';
 import { commandHandler } from './command-handler';
-import { storage } from './storage'; // Import the storage module
+import { storage } from '../storage';
 
 interface BlueskyCredentials {
   identifier: string;
@@ -13,9 +13,11 @@ export class BlueskyBot {
   private isWatching: boolean = false;
   private watchInterval: NodeJS.Timeout | null = null;
   private lastLoginAt: number = 0;
+  private lastSeenAt: string | undefined;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分のクールダウン
 
   constructor(credentials: BlueskyCredentials) {
+    console.log('Initializing BlueskyBot with handle:', credentials.identifier);
     this.credentials = credentials;
     this.agent = new BskyAgent({ service: 'https://bsky.social' });
   }
@@ -72,8 +74,9 @@ export class BlueskyBot {
         }
       });
 
-      console.log('DM sent successfully:', response.uri);
-      return response.uri;
+      const uri = response.uri as string;
+      console.log('DM sent successfully:', uri);
+      return uri;
     } catch (error) {
       if (error instanceof Error && error.message.includes('rate limit')) {
         console.log('Hit rate limit, waiting before retry...');
@@ -97,10 +100,17 @@ export class BlueskyBot {
       this.isWatching = true;
 
       // 前回の処理時刻を取得
-      const state = await storage.getBotState('bluesky');
-      if (state) {
-        this.lastSeenAt = state.lastProcessedAt.toISOString();
-        console.log('Restored last processed time:', this.lastSeenAt);
+      try {
+        const state = await storage.getBotState('bluesky');
+        if (state) {
+          this.lastSeenAt = state.lastProcessedAt.toISOString();
+          console.log('Restored last processed time:', this.lastSeenAt);
+        } else {
+          console.log('No previous state found, starting fresh');
+        }
+      } catch (error) {
+        console.error('Error retrieving bot state:', error);
+        // エラーが発生しても処理は継続
       }
 
       // Poll for new notifications every 30 seconds
@@ -153,8 +163,12 @@ export class BlueskyBot {
           if (response.data.notifications.length > 0) {
             this.lastSeenAt = new Date().toISOString();
             await this.agent.updateSeenNotifications();
-            await storage.updateBotState('bluesky', new Date(this.lastSeenAt));
-            console.log('Updated seen notifications timestamp:', this.lastSeenAt);
+            try {
+              await storage.updateBotState('bluesky', new Date(this.lastSeenAt));
+              console.log('Updated seen notifications timestamp:', this.lastSeenAt);
+            } catch (error) {
+              console.error('Error updating bot state:', error);
+            }
           }
         } catch (error) {
           if (error instanceof Error && error.message.includes('rate limit')) {

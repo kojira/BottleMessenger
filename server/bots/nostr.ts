@@ -1,7 +1,7 @@
 import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
-import { storage } from './storage'; // Assuming storage module exists
+import { storage } from '../storage';
 
 // Set WebSocket implementation for nostr-tools
 (globalThis as any).WebSocket = WebSocket;
@@ -29,24 +29,9 @@ export class NostrBot {
   private lastProcessedAt: number | null = null;
 
   constructor(credentials: NostrCredentials) {
+    console.log('Initializing NostrBot...');
     this.credentials = credentials;
     this.pool = new SimplePool();
-  }
-
-  private async connectToRelay(): Promise<void> {
-    try {
-      await this.pool.ensureRelay(this.relayUrls[0]);
-      console.log('Connected to primary relay:', this.relayUrls[0]);
-    } catch (error) {
-      console.error('Failed to connect to primary relay, trying backup');
-      try {
-        await this.pool.ensureRelay(this.relayUrls[1]);
-        console.log('Connected to backup relay:', this.relayUrls[1]);
-      } catch (error) {
-        console.error('Failed to connect to backup relay');
-        throw error;
-      }
-    }
   }
 
   async sendDM(recipient: string, content: string): Promise<string | null> {
@@ -98,17 +83,23 @@ export class NostrBot {
     }
 
     try {
-      await this.connectToRelay();
       console.log('Starting to watch for Nostr DMs...');
 
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
       // 前回の処理時刻を取得
-      const state = await storage.getBotState('nostr');
-      if (state) {
-        this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
-        console.log('Restored last processed time:', this.lastProcessedAt);
+      try {
+        const state = await storage.getBotState('nostr');
+        if (state) {
+          this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
+          console.log('Restored last processed time:', this.lastProcessedAt);
+        } else {
+          console.log('No previous state found, starting fresh');
+        }
+      } catch (error) {
+        console.error('Error retrieving bot state:', error);
+        // エラーが発生しても処理は継続
       }
 
       console.log('Watching for DMs to pubkey:', pubkey);
@@ -155,9 +146,14 @@ export class NostrBot {
           }
 
           // Update last processed time
-          const timestamp = new Date(event.created_at * 1000);
-          await storage.updateBotState('nostr', timestamp);
-          this.lastProcessedAt = event.created_at;
+          try {
+            const timestamp = new Date(event.created_at * 1000);
+            await storage.updateBotState('nostr', timestamp);
+            this.lastProcessedAt = event.created_at;
+            console.log('Updated last processed time:', timestamp);
+          } catch (error) {
+            console.error('Error updating bot state:', error);
+          }
         } catch (error) {
           console.error('Failed to process DM:', error);
         }
@@ -173,6 +169,13 @@ export class NostrBot {
     }
   }
 
+  async cleanup(): Promise<void> {
+    console.log('Cleaning up Nostr bot...');
+    this.isWatching = false;
+    this.closeSubscriptions();
+    await this.pool.close();
+  }
+
   private closeSubscriptions(): void {
     this.activeSubscriptions.forEach(sub => {
       try {
@@ -182,11 +185,5 @@ export class NostrBot {
       }
     });
     this.activeSubscriptions = [];
-  }
-
-  async cleanup(): Promise<void> {
-    this.isWatching = false;
-    this.closeSubscriptions();
-    await this.pool.close();
   }
 }

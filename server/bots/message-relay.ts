@@ -23,12 +23,18 @@ export class MessageRelay {
       // Start watching for DMs
       if (this.blueskyBot) {
         console.log('Starting Bluesky DM watch...');
-        this.blueskyBot.watchDMs().catch(console.error);
+        this.blueskyBot.watchDMs().catch(error => {
+          console.error('Error in Bluesky DM watch:', error);
+          throw error;
+        });
       }
 
       if (this.nostrBot) {
         console.log('Starting Nostr DM watch...');
-        this.nostrBot.watchDMs().catch(console.error);
+        this.nostrBot.watchDMs().catch(error => {
+          console.error('Error in Nostr DM watch:', error);
+          throw error;
+        });
       }
 
       console.log('Message relay initialization completed');
