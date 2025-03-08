@@ -36,34 +36,39 @@ app.use((req, res, next) => {
   next();
 });
 
+// Debug endpoint
+app.get("/api/test", (_req, res) => {
+  res.json({ message: "API server is running" });
+});
+
 (async () => {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    log(`Error: ${err.message}`);
+    log(err.stack);
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
+  // Serve static files in production
+  if (process.env.NODE_ENV === "production") {
     serveStatic(app);
+  } else {
+    // Setup Vite in development
+    await setupVite(app, server);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
   const port = 5000;
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+    log(`Serving on http://0.0.0.0:${port}`);
   });
 })();

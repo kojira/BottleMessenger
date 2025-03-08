@@ -8,7 +8,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: "Dashboard", href: "/" },
-    { name: "Bots", href: "/bots" },
+    { name: "Settings", href: "/settings" },
     { name: "Messages", href: "/messages" },
   ];
 

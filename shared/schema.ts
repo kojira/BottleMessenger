@@ -2,12 +2,12 @@ import { pgTable, text, serial, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const botAccounts = pgTable("bot_accounts", {
+export const botSettings = pgTable("bot_settings", {
   id: serial("id").primaryKey(),
-  platform: text("platform").notNull(), // 'bluesky' | 'nostr'
-  identifier: text("identifier").notNull(), // Bluesky handle or Nostr pubkey
-  credentials: jsonb("credentials").notNull(), // {identifier, password} for Bluesky or {privateKey} for Nostr
-  active: text("active").notNull().default("true"),
+  blueskyHandle: text("bluesky_handle").notNull(),
+  blueskyPassword: text("bluesky_password").notNull(),
+  nostrPrivateKey: text("nostr_private_key").notNull(),
+  enabled: text("enabled").notNull().default("true"),
 });
 
 export const messages = pgTable("messages", {
@@ -23,12 +23,12 @@ export const messages = pgTable("messages", {
   error: text("error"),
 });
 
-export const insertBotSchema = createInsertSchema(botAccounts).omit({ id: true });
+export const settingsSchema = createInsertSchema(botSettings).omit({ id: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
 
-export type Bot = typeof botAccounts.$inferSelect;
+export type Settings = typeof botSettings.$inferSelect;
 export type Message = typeof messages.$inferSelect;
-export type InsertBot = z.infer<typeof insertBotSchema>;
+export type InsertSettings = z.infer<typeof settingsSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export const platformSchema = z.enum(["bluesky", "nostr"]);

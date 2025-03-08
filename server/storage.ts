@@ -1,18 +1,15 @@
-import { Bot, Message, InsertBot, InsertMessage } from "@shared/schema";
+import { Settings, Message, InsertSettings, InsertMessage } from "@shared/schema";
 import fs from "fs/promises";
 import path from "path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const BOTS_FILE = path.join(DATA_DIR, "bots.json");
+const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
 
 export interface IStorage {
-  // Bot operations
-  getBots(): Promise<Bot[]>;
-  getBot(id: number): Promise<Bot | undefined>;
-  createBot(bot: InsertBot): Promise<Bot>;
-  updateBot(id: number, bot: Partial<Bot>): Promise<Bot>;
-  deleteBot(id: number): Promise<void>;
+  // Settings operations
+  getSettings(): Promise<Settings | null>;
+  updateSettings(settings: InsertSettings): Promise<Settings>;
 
   // Message operations
   getMessages(limit?: number): Promise<Message[]>;
@@ -22,15 +19,13 @@ export interface IStorage {
 }
 
 export class JSONStorage implements IStorage {
-  private bots: Map<number, Bot>;
+  private settings: Settings | null;
   private messages: Map<number, Message>;
-  private botId: number;
   private messageId: number;
 
   constructor() {
-    this.bots = new Map();
+    this.settings = null;
     this.messages = new Map();
-    this.botId = 1;
     this.messageId = 1;
     this.initStorage();
   }
@@ -38,16 +33,12 @@ export class JSONStorage implements IStorage {
   private async initStorage() {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
-      
+
       try {
-        const botsData = await fs.readFile(BOTS_FILE, 'utf-8');
-        const bots = JSON.parse(botsData) as Bot[];
-        bots.forEach(bot => {
-          this.bots.set(bot.id, bot);
-          this.botId = Math.max(this.botId, bot.id + 1);
-        });
+        const settingsData = await fs.readFile(SETTINGS_FILE, 'utf-8');
+        this.settings = JSON.parse(settingsData) as Settings;
       } catch (e) {
-        await this.saveBots();
+        await this.saveSettings();
       }
 
       try {
@@ -66,42 +57,30 @@ export class JSONStorage implements IStorage {
     }
   }
 
-  private async saveBots() {
-    await fs.writeFile(BOTS_FILE, JSON.stringify(Array.from(this.bots.values()), null, 2));
+  private async saveSettings() {
+    if (this.settings) {
+      await fs.writeFile(SETTINGS_FILE, JSON.stringify(this.settings, null, 2));
+    }
   }
 
   private async saveMessages() {
     await fs.writeFile(MESSAGES_FILE, JSON.stringify(Array.from(this.messages.values()), null, 2));
   }
 
-  async getBots(): Promise<Bot[]> {
-    return Array.from(this.bots.values());
+  async getSettings(): Promise<Settings | null> {
+    return this.settings;
   }
 
-  async getBot(id: number): Promise<Bot | undefined> {
-    return this.bots.get(id);
-  }
-
-  async createBot(bot: InsertBot): Promise<Bot> {
-    const newBot: Bot = { ...bot, id: this.botId++ };
-    this.bots.set(newBot.id, newBot);
-    await this.saveBots();
-    return newBot;
-  }
-
-  async updateBot(id: number, update: Partial<Bot>): Promise<Bot> {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
-    
-    const updatedBot = { ...bot, ...update };
-    this.bots.set(id, updatedBot);
-    await this.saveBots();
-    return updatedBot;
-  }
-
-  async deleteBot(id: number): Promise<void> {
-    this.bots.delete(id);
-    await this.saveBots();
+  async updateSettings(settings: InsertSettings): Promise<Settings> {
+    // Always ensure enabled is a string
+    const enabled = settings.enabled ?? 'true';
+    this.settings = { 
+      id: 1, 
+      ...settings,
+      enabled 
+    };
+    await this.saveSettings();
+    return this.settings;
   }
 
   async getMessages(limit = 100): Promise<Message[]> {
@@ -118,7 +97,9 @@ export class JSONStorage implements IStorage {
     const newMessage: Message = {
       ...message,
       id: this.messageId++,
-      createdAt: new Date()
+      createdAt: new Date(),
+      targetId: message.targetId ?? null,
+      error: message.error ?? null
     };
     this.messages.set(newMessage.id, newMessage);
     await this.saveMessages();
@@ -128,7 +109,7 @@ export class JSONStorage implements IStorage {
   async updateMessage(id: number, update: Partial<Message>): Promise<Message> {
     const message = this.messages.get(id);
     if (!message) throw new Error(`Message ${id} not found`);
-    
+
     const updatedMessage = { ...message, ...update };
     this.messages.set(id, updatedMessage);
     await this.saveMessages();

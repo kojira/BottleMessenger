@@ -1,33 +1,40 @@
 import { BskyAgent } from '@atproto/api';
-import { Bot } from '@shared/schema';
+
+interface BlueskyCredentials {
+  identifier: string;
+  password: string;
+}
 
 export class BlueskyBot {
   private agent: BskyAgent;
-  private bot: Bot;
+  private credentials: BlueskyCredentials;
 
-  constructor(bot: Bot) {
-    if (bot.platform !== 'bluesky') {
-      throw new Error('Invalid bot platform');
-    }
-    this.bot = bot;
+  constructor(credentials: BlueskyCredentials) {
+    this.credentials = credentials;
     this.agent = new BskyAgent({ service: 'https://bsky.social' });
   }
 
   async connect() {
-    const creds = this.bot.credentials as { identifier: string; password: string };
-    await this.agent.login({
-      identifier: creds.identifier,
-      password: creds.password
-    });
+    if (!this.agent.session) {
+      await this.agent.login({
+        identifier: this.credentials.identifier,
+        password: this.credentials.password
+      });
+    }
   }
 
-  async sendDM(recipient: string, content: string) {
+  async sendDM(recipient: string, content: string): Promise<string | null> {
     try {
       await this.connect();
+
+      if (!this.agent.session?.did) {
+        throw new Error('Not authenticated');
+      }
+
       // Implementation using Bluesky API to send DM
       // This is a placeholder as the actual API methods may change
       const response = await this.agent.api.app.bsky.feed.post.create(
-        { repo: this.agent.session?.did },
+        { repo: this.agent.session.did },
         {
           text: content,
           createdAt: new Date().toISOString(),
@@ -37,7 +44,7 @@ export class BlueskyBot {
       return response.uri;
     } catch (error) {
       console.error('Failed to send Bluesky DM:', error);
-      throw error;
+      return null;
     }
   }
 

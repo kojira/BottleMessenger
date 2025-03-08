@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, Message } from "@shared/schema";
+import { type Settings, type Message } from "@shared/schema";
 
 export default function Dashboard() {
-  const { data: bots } = useQuery<Bot[]>({ 
-    queryKey: ["/api/bots"]
+  const { data: settings } = useQuery<Settings>({ 
+    queryKey: ["/api/settings"]
   });
 
   const { data: messages } = useQuery<Message[]>({ 
@@ -18,18 +18,30 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Active Bots</CardTitle>
+            <CardTitle>Bot Status</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {bots?.filter(b => b.active === 'true').map(bot => (
-                <div key={bot.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{bot.identifier}</p>
-                    <p className="text-sm text-muted-foreground">{bot.platform}</p>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Bluesky Bot</p>
+                  <p className="text-sm text-muted-foreground">{settings?.blueskyHandle}</p>
                 </div>
-              ))}
+                <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
+                  {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Nostr Bot</p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings?.nostrPrivateKey ? '設定済み' : '未設定'}
+                  </p>
+                </div>
+                <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
+                  {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>

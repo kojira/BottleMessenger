@@ -1,82 +1,128 @@
-import { Bot } from '@shared/schema';
-import * as nostr from 'nostr-tools';
+import { SimplePool, getPublicKey, nip04, getEventHash } from 'nostr-tools';
+
+interface NostrCredentials {
+  privateKey: string;
+}
+
+interface NostrEvent {
+  kind: number;
+  pubkey: string;
+  created_at: number;
+  tags: string[][];
+  content: string;
+  id?: string;
+}
 
 export class NostrBot {
-  private bot: Bot;
-  private relay: nostr.Relay;
+  private credentials: NostrCredentials;
+  private pool: SimplePool;
+  private relayUrls = ['wss://relay.damus.io', 'wss://nos.lol'];
 
-  constructor(bot: Bot) {
-    if (bot.platform !== 'nostr') {
-      throw new Error('Invalid bot platform');
-    }
-    this.bot = bot;
+  constructor(credentials: NostrCredentials) {
+    this.credentials = credentials;
+    this.pool = new SimplePool();
   }
 
-  async connect() {
-    const creds = this.bot.credentials as { privateKey: string };
-    this.relay = nostr.relayInit('wss://relay.damus.io');
-    await this.relay.connect();
-    
-    // Validate connection
-    if (!this.relay.connected) {
-      throw new Error('Failed to connect to Nostr relay');
-    }
-  }
-
-  async sendDM(recipient: string, content: string) {
+  private async connectToRelay(): Promise<void> {
     try {
-      await this.connect();
-      const creds = this.bot.credentials as { privateKey: string };
-      
-      const event = {
-        kind: 4, // Encrypted Direct Message
-        pubkey: nostr.getPublicKey(creds.privateKey),
+      await this.pool.ensureRelay(this.relayUrls[0]);
+    } catch (error) {
+      console.error('Failed to connect to primary relay, trying backup');
+      await this.pool.ensureRelay(this.relayUrls[1]);
+    }
+  }
+
+  async sendDM(recipient: string, content: string): Promise<string | null> {
+    try {
+      await this.connectToRelay();
+
+      // Convert privateKey from hex to Uint8Array
+      const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
+      const pubkey = getPublicKey(privateKeyBytes);
+
+      const encryptedContent = await nip04.encrypt(
+        privateKeyBytes,
+        recipient,
+        content
+      );
+
+      const event: NostrEvent = {
+        kind: 4,
+        pubkey,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['p', recipient]],
-        content: await nostr.nip04.encrypt(creds.privateKey, recipient, content)
+        content: encryptedContent
       };
 
-      const signedEvent = await nostr.signEvent(event, creds.privateKey);
-      const pub = this.relay.publish(signedEvent);
-      
-      return new Promise((resolve, reject) => {
-        pub.on('ok', () => resolve(signedEvent.id));
-        pub.on('failed', reject);
-      });
+      // Add required fields for event ID
+      const eventId = getEventHash(event);
+      const signedEvent = { ...event, id: eventId };
+
+      // Publish to relays
+      try {
+        await Promise.any(
+          this.relayUrls.map(url => 
+            this.pool.publish(url, signedEvent)
+          )
+        );
+        return eventId;
+      } catch (error) {
+        console.error('Failed to publish to any relay:', error);
+        return null;
+      }
     } catch (error) {
       console.error('Failed to send Nostr DM:', error);
-      throw error;
+      return null;
     }
   }
 
-  async watchDMs() {
+  async watchDMs(): Promise<void> {
     try {
-      await this.connect();
-      const creds = this.bot.credentials as { privateKey: string };
-      const pubkey = nostr.getPublicKey(creds.privateKey);
-      
-      const sub = this.relay.sub([
+      await this.connectToRelay();
+
+      // Convert privateKey from hex to Uint8Array
+      const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
+      const pubkey = getPublicKey(privateKeyBytes);
+
+      this.pool.sub(
+        this.relayUrls,
+        [
+          {
+            kinds: [4],
+            '#p': [pubkey]
+          }
+        ],
         {
-          kinds: [4], // Encrypted Direct Messages
-          '#p': [pubkey]
+          onevent: async (event: NostrEvent) => {
+            if (event.pubkey === pubkey) return; // Skip own messages
+
+            try {
+              const content = await nip04.decrypt(
+                privateKeyBytes,
+                event.pubkey,
+                event.content
+              );
+
+              console.log('Received DM:', {
+                from: event.pubkey,
+                content
+              });
+            } catch (error) {
+              console.error('Failed to decrypt DM:', error);
+            }
+          }
         }
-      ]);
+      );
 
-      sub.on('event', async (event) => {
-        if (event.pubkey === pubkey) return; // Skip own messages
-        
-        const content = await nostr.nip04.decrypt(
-          creds.privateKey,
-          event.pubkey,
-          event.content
-        );
-
-        // Handle incoming message
-        console.log('Received DM:', content);
-      });
     } catch (error) {
       console.error('Failed to watch Nostr DMs:', error);
       throw error;
     }
+  }
+
+  private hexToBytes(hex: string): Uint8Array {
+    return new Uint8Array(
+      hex.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+    );
   }
 }

@@ -1,53 +1,59 @@
-import { Bot, Message, InsertMessage } from '@shared/schema';
+import { InsertMessage, Settings } from '@shared/schema';
 import { storage } from '../storage';
 import { BlueskyBot } from './bluesky';
 import { NostrBot } from './nostr';
 
 export class MessageRelay {
-  private bots: Map<number, BlueskyBot | NostrBot> = new Map();
+  private blueskyBot: BlueskyBot | null = null;
+  private nostrBot: NostrBot | null = null;
 
   async init() {
-    const bots = await storage.getBots();
-    bots.forEach(bot => {
-      if (bot.active === 'true') {
-        this.addBot(bot);
-      }
-    });
+    const settings = await storage.getSettings();
+    if (settings && settings.enabled === 'true') {
+      this.setupBots(settings);
+    }
   }
 
-  private addBot(bot: Bot) {
-    const botInstance = bot.platform === 'bluesky' 
-      ? new BlueskyBot(bot)
-      : new NostrBot(bot);
-    
-    this.bots.set(bot.id, botInstance);
-    botInstance.watchDMs().catch(console.error);
+  private setupBots(settings: Settings) {
+    this.blueskyBot = new BlueskyBot({
+      identifier: settings.blueskyHandle,
+      password: settings.blueskyPassword
+    });
+
+    this.nostrBot = new NostrBot({
+      privateKey: settings.nostrPrivateKey
+    });
+
+    // Start watching for DMs
+    if (this.blueskyBot) this.blueskyBot.watchDMs().catch(console.error);
+    if (this.nostrBot) this.nostrBot.watchDMs().catch(console.error);
   }
 
   async relayMessage(message: InsertMessage) {
     try {
-      // Find active bot for target platform
-      const targetBot = Array.from(this.bots.values()).find(
-        bot => bot instanceof (message.targetPlatform === 'bluesky' ? BlueskyBot : NostrBot)
-      );
-
-      if (!targetBot) {
-        throw new Error(`No active bot found for platform ${message.targetPlatform}`);
-      }
-
       // Create message record
       const savedMessage = await storage.createMessage({
         ...message,
-        status: 'pending'
+        status: 'pending',
+        targetId: null // Initialize as null
       });
 
-      // Send message
+      // Get the appropriate bot based on target platform
+      const targetBot = message.targetPlatform === 'bluesky' 
+        ? this.blueskyBot 
+        : this.nostrBot;
+
+      if (!targetBot) {
+        throw new Error(`No bot available for platform ${message.targetPlatform}`);
+      }
+
+      // Send message and ensure targetId is string | null
       const targetId = await targetBot.sendDM(message.sourceUser, message.content);
 
       // Update message status
       await storage.updateMessage(savedMessage.id, {
         status: 'sent',
-        targetId
+        targetId: targetId || null
       });
 
       return savedMessage;
