@@ -33,7 +33,6 @@ export class NostrBot {
 
   private async connectToRelay(): Promise<void> {
     try {
-      // Try primary relay first
       await this.pool.ensureRelay(this.relayUrls[0]);
       console.log('Connected to primary relay');
     } catch (error) {
@@ -50,13 +49,13 @@ export class NostrBot {
 
   async sendDM(recipient: string, content: string): Promise<string | null> {
     try {
-      const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
-      const pubkey = getPublicKey(privateKeyBytes);
+      const privateKey = this.credentials.privateKey;
+      const pubkey = getPublicKey(privateKey);
 
-      console.log(`Sending DM to ${recipient}: ${content}`);
+      console.log(`Sending DM from ${pubkey} to ${recipient}: ${content}`);
 
       const encryptedContent = await nip04.encrypt(
-        privateKeyBytes,
+        privateKey,
         recipient,
         content
       );
@@ -73,7 +72,6 @@ export class NostrBot {
       const signedEvent = { ...event, id: eventId };
 
       try {
-        // Publish to all relays and wait for at least one success
         await Promise.any(
           this.relayUrls.map(url =>
             this.pool.publish(url, signedEvent)
@@ -101,8 +99,8 @@ export class NostrBot {
       await this.connectToRelay();
       console.log('Starting to watch for Nostr DMs...');
 
-      const privateKeyBytes = this.hexToBytes(this.credentials.privateKey);
-      const pubkey = getPublicKey(privateKeyBytes);
+      const privateKey = this.credentials.privateKey;
+      const pubkey = getPublicKey(privateKey);
 
       console.log('Watching for DMs to pubkey:', pubkey);
 
@@ -128,7 +126,7 @@ export class NostrBot {
               console.log('Received encrypted DM from:', event.pubkey);
 
               const content = await nip04.decrypt(
-                privateKeyBytes,
+                privateKey,
                 event.pubkey,
                 event.content
               );

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { messageRelay } from "./bots/message-relay";
 import { settingsSchema, insertMessageSchema } from "@shared/schema";
 import { ZodError } from "zod";
+import { getPublicKey as nostrGetPublicKey } from "nostr-tools";
 
 export async function registerRoutes(app: Express) {
   const server = createServer(app);
@@ -79,10 +80,15 @@ export async function registerRoutes(app: Express) {
         if (!settings?.nostrPrivateKey) {
           return res.status(400).json({ error: "Nostr private key not configured" });
         }
+
+        // Convert private key to public key using nostr-tools
+        const publicKey = nostrGetPublicKey(settings.nostrPrivateKey);
+        console.log('Generated Nostr public key:', publicKey);
+
         await messageRelay.relayMessage({
           sourcePlatform: "test",
           sourceId: "test",
-          sourceUser: getPublicKey(settings.nostrPrivateKey),
+          sourceUser: publicKey,
           targetPlatform: "nostr",
           content,
           status: "pending"
@@ -99,10 +105,4 @@ export async function registerRoutes(app: Express) {
   });
 
   return server;
-}
-
-function getPublicKey(privateKey: string): string {
-  //Implementation to get public key from private key.  This is a placeholder and needs actual implementation.
-  //This example assumes a simple return for demonstration.  A proper cryptographic library should be used in a production environment.
-  return "placeholderPublicKey";
 }
