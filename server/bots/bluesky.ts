@@ -50,29 +50,15 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log(`Sending DM to ${recipient}: ${content}`);
 
-      // 送信先のプロファイルを取得してDIDを取得
-      const profile = await this.agent.getProfile({ actor: recipient });
-      if (!profile.success) {
-        throw new Error('Failed to get recipient profile');
-      }
-
-      // DMとして送信
-      const response = await this.agent.com.atproto.repo.createRecord({
-        repo: this.agent.session?.did,
-        collection: 'app.bsky.feed.post',
-        record: {
-          $type: 'app.bsky.feed.post',
-          text: content,
-          createdAt: new Date().toISOString(),
-          reply: undefined,
-          embed: undefined,
-          facets: undefined,
-          labels: undefined,
-        }
+      // DMを送信
+      const response = await this.agent.api.app.bsky.feed.threadgate.create({
+        text: content,
+        recipients: [recipient],
+        createdAt: new Date().toISOString()
       });
 
-      console.log('DM sent successfully:', response.uri);
-      return response.uri;
+      console.log('DM sent successfully:', response);
+      return response?.uri || null;
     } catch (error) {
       console.error('Failed to send Bluesky DM:', error);
       return null;
@@ -82,27 +68,34 @@ export class BlueskyBot {
   async checkNotifications() {
     try {
       await this.ensureSession();
-      console.log('Checking Bluesky messages...');
+      console.log('Checking Bluesky DMs...');
 
       // DMを取得
-      const response = await this.agent.api.app.bsky.feed.getAuthorFeed({
-        actor: this.agent.session?.did,
+      const response = await this.agent.api.app.bsky.feed.getTimeline({
+        algorithm: 'reverse-chronological',
         limit: 20,
       });
 
-      console.log(`Found ${response.data.feed.length} messages`);
+      console.log(`Found ${response.data.feed.length} timeline items`);
 
+      // DMを処理
       for (const item of response.data.feed) {
         try {
           const post = item.post;
-          console.log('Processing message:', {
+          console.log('Processing post:', {
             text: post.record.text,
             author: post.author.handle,
-            type: post.record.$type
+            type: post.record.$type,
+            isThreaded: !!post.record.reply
           });
 
-          if (post.record.text.startsWith('/')) {
-            console.log('Processing command from:', post.author.handle);
+          // DMの場合のみ処理
+          if (post.record.$type === 'app.bsky.feed.threadgate' && post.record.text.startsWith('/')) {
+            console.log('Found DM with command:', {
+              sender: post.author.handle,
+              text: post.record.text
+            });
+
             const response = await commandHandler.handleCommand(
               'bluesky',
               post.author.did,
@@ -123,7 +116,7 @@ export class BlueskyBot {
       console.log('Updated bot state timestamp');
 
     } catch (error) {
-      console.error('Failed to check Bluesky messages:', error);
+      console.error('Failed to check Bluesky DMs:', error);
       throw error;
     }
   }
