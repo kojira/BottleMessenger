@@ -12,7 +12,6 @@ export class BlueskyBot {
   private credentials: BlueskyCredentials;
   private isWatching: boolean = false;
   private lastLoginAt: number = 0;
-  private lastNotificationId: string | undefined;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分
 
   constructor(credentials: BlueskyCredentials) {
@@ -76,51 +75,67 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log('Checking Bluesky notifications...');
 
-      // 自分のフィードを取得
-      const myDid = this.agent.session?.did;
-      if (!myDid) {
-        throw new Error('Not authenticated');
-      }
+      const myHandle = this.credentials.identifier;
 
-      console.log('Fetching author feed...');
-      const feed = await this.agent.getAuthorFeed({
-        actor: myDid,
-        limit: 20,
+      // 通知を取得
+      console.log('Fetching notifications...');
+      const notifications = await this.agent.listNotifications({
+        limit: 20
       });
 
-      console.log(`Found ${feed.data.feed.length} posts in feed`);
+      console.log(`Found ${notifications.data.notifications.length} notifications`);
 
-      const myHandle = this.credentials.identifier;
-      for (const item of feed.data.feed) {
+      // 通知を古い順に処理
+      for (const notification of [...notifications.data.notifications].reverse()) {
         try {
-          const post = item.post;
-          console.log('Checking post:', {
+          console.log('Processing notification:', {
+            reason: notification.reason,
+            author: notification.author.handle,
+            uri: notification.uri
+          });
+
+          // 投稿の詳細を取得
+          const postView = await this.agent.getPostThread({
+            uri: notification.uri,
+            depth: 0
+          });
+
+          if (!postView.success || !postView.data.thread.post) {
+            console.log('Failed to get post details');
+            continue;
+          }
+
+          const post = postView.data.thread.post;
+          console.log('Post details:', {
             text: post.record.text,
             author: post.author.handle,
             replyTo: post.record.reply
           });
 
-          // 自分宛のメンションを含むか確認
-          if (post.record.text.includes(`@${myHandle}`) && post.record.text.includes('/')) {
-            console.log('Found command in mention:', post.record.text);
+          // メンションを含むポストのみを処理
+          if (post.record.text.includes(`@${myHandle}`)) {
+            console.log('Found mention:', post.record.text);
 
-            const response = await commandHandler.handleCommand(
-              'bluesky',
-              post.author.did,
-              post.record.text
-            );
+            if (post.record.text.includes('/')) {
+              console.log('Processing command from:', post.author.handle);
+              const response = await commandHandler.handleCommand(
+                'bluesky',
+                post.author.did,
+                post.record.text
+              );
 
-            if (response.content) {
-              console.log('Sending response:', response.content);
-              await this.sendDM(post.author.handle, response.content);
+              if (response.content) {
+                console.log('Sending response:', response.content);
+                await this.sendDM(post.author.handle, response.content);
+              }
             }
           }
         } catch (error) {
-          console.error('Error processing post:', error);
+          console.error('Error processing notification:', error);
         }
       }
 
-      // 最後の処理時刻を保存
+      // 処理時刻を更新
       await storage.updateBotState('bluesky', new Date());
       console.log('Updated bot state timestamp');
 
