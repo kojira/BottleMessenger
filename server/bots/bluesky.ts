@@ -73,10 +73,29 @@ export class BlueskyBot {
 
   private async decryptDM(notification: any): Promise<string | null> {
     try {
-      if (!notification.record?.text) {
+      console.log('Checking notification record:', {
+        type: notification.reason,
+        uri: notification.uri,
+        cid: notification.cid,
+        author: notification.author.handle
+      });
+
+      if (!notification.record) {
+        console.log('No record found in notification');
         return null;
       }
-      return notification.record.text;
+
+      console.log('Record details:', {
+        type: notification.record.$type,
+        text: notification.record.text,
+        createdAt: notification.record.createdAt
+      });
+
+      if (notification.record.$type === 'app.bsky.feed.post') {
+        return notification.record.text;
+      }
+
+      return null;
     } catch (error) {
       console.error('Failed to decrypt DM:', error);
       return null;
@@ -100,29 +119,29 @@ export class BlueskyBot {
         // 通知を古い順に処理
         for (const notification of [...response.data.notifications].reverse()) {
           try {
-            // メンションとDMの両方をチェック
-            if (notification.reason === 'mention' || notification.reason === 'post') {
-              console.log('Processing notification:', {
-                type: notification.reason,
-                author: notification.author.handle
-              });
+            // DMとメンションの両方をチェック
+            console.log('Processing notification:', {
+              type: notification.reason,
+              author: notification.author.handle,
+              isRead: notification.isRead,
+              indexedAt: notification.indexedAt
+            });
 
-              const message = await this.decryptDM(notification);
-              if (message) {
-                console.log('Message content:', message);
+            const message = await this.decryptDM(notification);
+            if (message) {
+              console.log('Successfully decoded message:', message);
 
-                if (message.startsWith('/')) {
-                  console.log('Processing command from:', notification.author.handle);
-                  const response = await commandHandler.handleCommand(
-                    'bluesky',
-                    notification.author.did,
-                    message
-                  );
+              if (message.startsWith('/')) {
+                console.log('Processing command from:', notification.author.handle);
+                const response = await commandHandler.handleCommand(
+                  'bluesky',
+                  notification.author.did,
+                  message
+                );
 
-                  if (response.content) {
-                    console.log('Sending response:', response.content);
-                    await this.sendDM(notification.author.handle, response.content);
-                  }
+                if (response.content) {
+                  console.log('Sending response:', response.content);
+                  await this.sendDM(notification.author.handle, response.content);
                 }
               }
             }
