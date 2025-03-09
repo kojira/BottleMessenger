@@ -3,8 +3,9 @@
   <!-- 背景 -->
   <rect width="400" height="120" fill="#ffffff" rx="8"/>
 
-  <!-- アバターの画像 -->
-  <image x="30" y="30" width="60" height="60" href="./blueskychan.webp"/>
+  <!-- アバターアイコン（円形プレースホルダー） -->
+  <circle cx="60" cy="60" r="30" fill="#1da1f2"/>
+  <text x="60" y="70" font-family="Arial" font-size="24" fill="white" text-anchor="middle">B</text>
 
   <!-- ユーザー名とハンドル -->
   <text x="110" y="50" font-family="Arial" font-size="16" font-weight="bold">Blueskyちゃん</text>
