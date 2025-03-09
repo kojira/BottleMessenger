@@ -91,8 +91,13 @@ export class NostrBot {
       }
     } catch (error) {
       console.error('Error initializing bot state:', error);
-      // エラー時も現在時刻を設定
+      // エラー時は現在時刻を設定
       this.lastProcessedAt = Math.floor(Date.now() / 1000);
+      try {
+        await storage.updateBotState('nostr', new Date(this.lastProcessedAt * 1000));
+      } catch (e) {
+        console.error('Failed to save initial bot state:', e);
+      }
     }
   }
 
@@ -117,7 +122,7 @@ export class NostrBot {
       const filter: Filter = {
         kinds: [4],
         '#p': [pubkey],
-        since: this.lastProcessedAt || undefined
+        since: Math.floor(Date.now() / 1000)  // 現在時刻（UTC）を使用
       };
 
       // Create subscription
@@ -138,6 +143,11 @@ export class NostrBot {
             last_processed_at: this.lastProcessedAt
           });
 
+          // メッセージを処理する前にlastProcessedAtを更新して処理済みとマーク
+          this.lastProcessedAt = event.created_at;
+          await storage.updateBotState('nostr', new Date(event.created_at * 1000));
+          console.log('Updated last processed time:', new Date(event.created_at * 1000));
+
           const content = await nip04.decrypt(
             privateKey,
             event.pubkey,
@@ -157,16 +167,6 @@ export class NostrBot {
             console.log('Sending response:', response.content);
             await this.sendDM(event.pubkey, response.content);
             console.log('Response sent successfully');
-          }
-
-          // Update last processed time
-          try {
-            const timestamp = new Date(event.created_at * 1000);
-            await storage.updateBotState('nostr', timestamp);
-            this.lastProcessedAt = event.created_at;
-            console.log('Updated last processed time:', timestamp);
-          } catch (error) {
-            console.error('Error updating bot state:', error);
           }
         } catch (error) {
           console.error('Failed to process DM:', error);
