@@ -111,14 +111,20 @@ help または ヘルプ - このヘルプを表示
     await storage.archiveBottle(bottle.id);
     await storage.incrementUserStat(platform, userId, "bottlesReceived");
 
+    // 返信を取得して返信状況を確認
+    const replies = await storage.getBottleReplies(bottle.id);
+    const repliesText = replies.length > 0
+      ? `\n\n返信（${replies.length}件）:\n` + replies.map(r => `- ${r.content}\nfrom ${r.senderPlatform}`).join('\n')
+      : '\n\nまだ返信はありません。';
+
     console.log(`Found and archived bottle #${bottle.id}`);
-    return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}\n\nfrom ${bottle.senderPlatform}` };
+    return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}\n\nfrom ${bottle.senderPlatform}${repliesText}` };
   }
 
   private async handleReplyBottle(
-    platform: string, 
-    userId: string, 
-    bottleId: string, 
+    platform: string,
+    userId: string,
+    bottleId: string,
     content: string
   ): Promise<CommandResponse> {
     console.log(`Processing reply to bottle #${bottleId} from ${platform}:${userId}`);
@@ -138,6 +144,24 @@ help または ヘルプ - このヘルプを表示
       return { content: "指定されたボトルメールは存在しません。", error: true };
     }
 
+    // 既存の返信を取得
+    const existingReplies = await storage.getBottleReplies(id);
+
+    // このボトルに返信しているユーザーを確認
+    const replier = existingReplies.find(reply => reply.senderPlatform !== bottle.senderPlatform || reply.senderId !== bottle.senderId);
+
+    // 返信権限チェック：
+    // 1. ボトルを拾ったユーザーの場合は常に返信可能
+    // 2. ボトルの作成者の場合は、既に返信があれば返信可能
+    const isOriginalSender = platform === bottle.senderPlatform && userId === bottle.senderId;
+    const canReply = replier ?
+      (platform === replier.senderPlatform && userId === replier.senderId) || isOriginalSender :
+      true;
+
+    if (!canReply) {
+      return { content: "このボトルメールへの返信権限がありません。", error: true };
+    }
+
     const reply: InsertBottleReply = {
       bottleId: id,
       content,
@@ -148,29 +172,23 @@ help または ヘルプ - このヘルプを表示
     await storage.createBottleReply(reply);
     await storage.incrementUserStat(platform, userId, "repliesSent");
 
-    // 元の送信者に返信があったことを通知
-    console.log('Notifying original sender:', {
-      platform: bottle.senderPlatform,
-      userId: bottle.senderId
-    });
+    // 返信の通知先を決定
+    // ボトルの作成者からの返信なら返信者へ、それ以外なら作成者へ
+    const targetPlatform = isOriginalSender ? replier!.senderPlatform : bottle.senderPlatform;
+    const targetUser = isOriginalSender ? replier!.senderId : bottle.senderId;
 
     try {
-      // プラットフォーム特有の送信者識別子を使用
-      const sourceUser = bottle.senderPlatform === 'bluesky' ? bottle.senderId : 
-        bottle.senderPlatform === 'nostr' ? bottle.senderId : 
-        bottle.senderId;  // デフォルトは元の送信者ID
-
       await messageRelay.relayMessage({
         sourcePlatform: platform,
         sourceId: userId,
-        sourceUser,  // プラットフォームに応じた送信者識別子を使用
-        targetPlatform: bottle.senderPlatform,
-        content: `あなたのボトルメール #${id} に返信がありました:\n\n${content}\n\nfrom ${platform}`,
+        sourceUser: targetUser,
+        targetPlatform: targetPlatform,
+        content: `ボトルメール #${id} への${isOriginalSender ? '返信に対する返信' : '返信'}がありました:\n\n${content}\n\nfrom ${platform}`,
         status: "pending"
       });
-      console.log('Notification sent to original sender');
+      console.log('Notification sent');
     } catch (error) {
-      console.error('Failed to notify original sender:', error);
+      console.error('Failed to notify:', error);
     }
 
     console.log(`Reply created for bottle #${id}`);
