@@ -80,6 +80,11 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log('Checking Bluesky DMs...');
 
+      // 前回の処理時刻を取得
+      const state = await storage.getBotState('bluesky');
+      const lastProcessedAt = state?.lastProcessedAt;
+      console.log('Last processed at:', lastProcessedAt?.toISOString());
+
       // 会話リストを取得
       const response = await this.chatAgent.chat.bsky.convo.listConvos();
       console.log(`Found ${response.data.convos.length} conversations`);
@@ -107,6 +112,13 @@ export class BlueskyBot {
             // 送信者情報の存在確認
             if (!message.sender?.did) {
               console.log('Skipping message with invalid sender');
+              continue;
+            }
+
+            // 前回の処理時刻以降のメッセージのみを処理
+            const messageCreatedAt = new Date(message.createdAt);
+            if (lastProcessedAt && messageCreatedAt <= lastProcessedAt) {
+              console.log('Skipping already processed message:', message.createdAt);
               continue;
             }
 
@@ -139,7 +151,7 @@ export class BlueskyBot {
     }
   }
 
-  async watchDMs() {
+  async watchDMs(): Promise<void> {
     if (this.isWatching) {
       console.log('Already watching Bluesky DMs');
       return;
