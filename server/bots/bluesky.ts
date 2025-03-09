@@ -82,8 +82,11 @@ export class BlueskyBot {
 
       // 前回の処理時刻を取得
       const state = await storage.getBotState('bluesky');
-      const lastProcessedAt = state?.lastProcessedAt;
-      console.log('Last processed at:', lastProcessedAt?.toISOString());
+      if (state) {
+        console.log('Last processed time:', state.lastProcessedAt.toISOString());
+      } else {
+        console.log('No previous state found, starting fresh');
+      }
 
       // 会話リストを取得
       const response = await this.chatAgent.chat.bsky.convo.listConvos();
@@ -106,7 +109,7 @@ export class BlueskyBot {
             console.log('Processing message:', {
               sender: message.sender,
               text: message.text,
-              createdAt: message.createdAt
+              createdAt: message.sentAt // sentAtを使用
             });
 
             // 送信者情報の存在確認
@@ -116,9 +119,9 @@ export class BlueskyBot {
             }
 
             // 前回の処理時刻以降のメッセージのみを処理
-            const messageCreatedAt = new Date(message.createdAt);
-            if (lastProcessedAt && messageCreatedAt <= lastProcessedAt) {
-              console.log('Skipping already processed message:', message.createdAt);
+            const messageCreatedAt = new Date(message.sentAt); // sentAtを使用
+            if (state && messageCreatedAt <= state.lastProcessedAt) {
+              console.log('Skipping already processed message:', message.sentAt);
               continue;
             }
 
