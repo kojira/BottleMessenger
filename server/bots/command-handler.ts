@@ -93,7 +93,7 @@ export class CommandHandler {
     await storage.incrementUserStat(platform, userId, "bottlesReceived");
 
     console.log(`Found and archived bottle #${bottle.id}`);
-    return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}` };
+    return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}\n\nfrom ${bottle.senderPlatform}` };
   }
 
   private async handleReplyBottle(
@@ -146,7 +146,7 @@ export class CommandHandler {
         sourceId: userId,
         sourceUser,  // プラットフォームに応じた送信者識別子を使用
         targetPlatform: bottle.senderPlatform,
-        content: `あなたのボトルメール #${id} に返信がありました:\n\n${content}`,
+        content: `あなたのボトルメール #${id} に返信がありました:\n\n${content}\n\nfrom ${platform}`,
         status: "pending"
       });
       console.log('Notification sent to original sender');
