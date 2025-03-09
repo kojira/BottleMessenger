@@ -14,6 +14,7 @@ export class BlueskyBot {
   private isWatching: boolean = false;
   private lastLoginAt: number = 0;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分
+  private checkInterval: NodeJS.Timeout | null = null;
 
   constructor(credentials: BlueskyCredentials) {
     console.log('Initializing BlueskyBot with handle:', credentials.identifier);
@@ -180,7 +181,17 @@ export class BlueskyBot {
       await this.checkNotifications();
       console.log('Initial DM check completed');
 
+      // 30秒ごとに通知をチェック
+      this.checkInterval = setInterval(async () => {
+        try {
+          await this.checkNotifications();
+        } catch (error) {
+          console.error('Error in periodic DM check:', error);
+        }
+      }, 30000); // 30秒
+
       this.isWatching = true;
+      console.log('Bluesky DM watch started successfully');
     } catch (error) {
       console.error('Failed to start Bluesky DM watch:', error);
       this.isWatching = false;
@@ -190,6 +201,10 @@ export class BlueskyBot {
 
   cleanup() {
     console.log('Cleaning up Bluesky bot...');
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
     this.isWatching = false;
   }
 }
