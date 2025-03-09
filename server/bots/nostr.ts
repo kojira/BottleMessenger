@@ -27,6 +27,7 @@ export class NostrBot {
   private activeSubscriptions: ReturnType<SimplePool['sub']>[] = [];
   private isWatching = false;
   private lastProcessedAt: number | null = null;
+  private statsInterval: NodeJS.Timeout | null = null;
 
   constructor(credentials: NostrCredentials) {
     console.log('Initializing NostrBot...');
@@ -101,6 +102,59 @@ export class NostrBot {
     }
   }
 
+  private async publishEvent(content: string, kind: number = 1): Promise<string | null> {
+    try {
+      const privateKey = this.credentials.privateKey;
+      const pubkey = getPublicKey(privateKey);
+
+      const event: NostrEvent = {
+        kind,
+        pubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content
+      };
+
+      event.id = getEventHash(event);
+      event.sig = signEvent(event, privateKey);
+
+      console.log('Attempting to publish event:', { ...event, content });
+
+      try {
+        await this.pool.publish(this.relayUrls, event);
+        console.log('Successfully published event');
+        return event.id;
+      } catch (error) {
+        console.error('Failed to publish event:', error);
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to create Nostr event:', error);
+      return null;
+    }
+  }
+
+  private async reportStats() {
+    try {
+      const stats = await storage.getGlobalStats();
+      const platformStats = stats.platformStats.find(s => s.platform === 'nostr');
+
+      if (!platformStats) return;
+
+      const activeBottles = stats.activeBottles;
+      const archivedBottles = stats.totalBottles - activeBottles;
+      const totalReplies = platformStats.replyCount;
+
+      const content = `📊 Nostrボットの状態
+🌊 ボトル：${activeBottles}通が漂流中、${archivedBottles}通が受け取られました
+💬 返信：${totalReplies}通の返信が届いています`;
+
+      await this.publishEvent(content);
+    } catch (error) {
+      console.error('Failed to report stats:', error);
+    }
+  }
+
   async watchDMs(): Promise<void> {
     if (this.isWatching) {
       console.log('Already watching for DMs');
@@ -113,6 +167,20 @@ export class NostrBot {
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
+      // 初回の統計情報投稿
+      await this.reportStats();
+      console.log('Initial stats report posted');
+
+      // 10分ごとに統計情報を投稿
+      this.statsInterval = setInterval(async () => {
+        try {
+          await this.reportStats();
+          console.log('Periodic stats report posted');
+        } catch (error) {
+          console.error('Error in periodic stats report:', error);
+        }
+      }, 10 * 60 * 1000); // 10分
+
       // 初期化時に状態を復元
       await this.initializeState();
       console.log('Bot state initialized');
@@ -122,7 +190,7 @@ export class NostrBot {
       const filter: Filter = {
         kinds: [4],
         '#p': [pubkey],
-        since: Math.floor(Date.now() / 1000)  // 現在時刻（UTC）を使用
+        since: this.lastProcessedAt || Math.floor(Date.now() / 1000)  // 現在時刻（UTC）を使用, or last processed time if available
       };
 
       // Create subscription
@@ -139,14 +207,9 @@ export class NostrBot {
 
           console.log('Received encrypted DM:', {
             from: event.pubkey,
-            created_at: event.created_at,
-            last_processed_at: this.lastProcessedAt
+            created_at: event.created_at
           });
 
-          // メッセージを処理する前にlastProcessedAtを更新して処理済みとマーク
-          this.lastProcessedAt = event.created_at;
-          await storage.updateBotState('nostr', new Date(event.created_at * 1000));
-          console.log('Updated last processed time:', new Date(event.created_at * 1000));
 
           const content = await nip04.decrypt(
             privateKey,
@@ -186,6 +249,10 @@ export class NostrBot {
   async cleanup(): Promise<void> {
     console.log('Cleaning up Nostr bot...');
     this.isWatching = false;
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+      this.statsInterval = null;
+    }
     this.closeSubscriptions();
     await this.pool.close();
   }

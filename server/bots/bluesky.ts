@@ -15,6 +15,7 @@ export class BlueskyBot {
   private lastLoginAt: number = 0;
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分
   private checkInterval: NodeJS.Timeout | null = null;
+  private statsInterval: NodeJS.Timeout | null = null;
 
   constructor(credentials: BlueskyCredentials) {
     console.log('Initializing BlueskyBot with handle:', credentials.identifier);
@@ -56,8 +57,8 @@ export class BlueskyBot {
       console.log(`Sending DM to ${recipientDid}: ${content}`);
 
       // 会話を取得または作成
-      const convoResponse = await this.chatAgent.chat.bsky.convo.getConvoForMembers({ 
-        members: [recipientDid] 
+      const convoResponse = await this.chatAgent.chat.bsky.convo.getConvoForMembers({
+        members: [recipientDid]
       });
       const convoId = convoResponse.data.convo.id;
       console.log('Conversation ID:', convoId);
@@ -73,6 +74,61 @@ export class BlueskyBot {
     } catch (error) {
       console.error('Failed to send Bluesky DM:', error);
       return null;
+    }
+  }
+
+  private async processCommand(did: string, text: string) {
+    try {
+      console.log('Processing command from sender DID:', did);
+      const response = await commandHandler.handleCommand(
+        'bluesky',
+        did,
+        text
+      );
+
+      if (response.content) {
+        console.log('Sending response:', response.content);
+        await this.sendDM(did, response.content);
+      }
+    } catch (error) {
+      console.error('Error processing command:', error);
+    }
+  }
+
+  private async postStatus(content: string) {
+    try {
+      await this.ensureSession();
+      console.log('Posting status update:', content);
+
+      await this.agent.post({
+        text: content,
+        createdAt: new Date().toISOString(),
+      });
+
+      console.log('Status posted successfully');
+    } catch (error) {
+      console.error('Failed to post status:', error);
+    }
+  }
+
+  private async reportStats() {
+    try {
+      const stats = await storage.getGlobalStats();
+      const platformStats = stats.platformStats.find(s => s.platform === 'bluesky');
+
+      if (!platformStats) return;
+
+      const activeBottles = stats.activeBottles;
+      const archivedBottles = stats.totalBottles - activeBottles;
+      const totalReplies = platformStats.replyCount;
+
+      const content = `📊 Blueskyボットの状態
+🌊 ボトル：${activeBottles}通が漂流中、${archivedBottles}通が受け取られました
+💬 返信：${totalReplies}通の返信が届いています`;
+
+      await this.postStatus(content);
+    } catch (error) {
+      console.error('Failed to report stats:', error);
     }
   }
 
@@ -130,17 +186,7 @@ export class BlueskyBot {
             }
 
             if (message.text.startsWith('/')) {
-              console.log('Processing command from sender DID:', message.sender.did);
-              const response = await commandHandler.handleCommand(
-                'bluesky',
-                message.sender.did,
-                message.text
-              );
-
-              if (response.content) {
-                console.log('Sending response:', response.content);
-                await this.sendDM(message.sender.did, response.content);
-              }
+              await this.processCommand(message.sender.did, message.text);
             }
           }
         } catch (error) {
@@ -167,6 +213,20 @@ export class BlueskyBot {
     try {
       await this.ensureSession();
       console.log('Starting Bluesky DM watch...');
+
+      // 初回の統計情報投稿
+      await this.reportStats();
+      console.log('Initial stats report posted');
+
+      // 10分ごとに統計情報を投稿
+      this.statsInterval = setInterval(async () => {
+        try {
+          await this.reportStats();
+          console.log('Periodic stats report posted');
+        } catch (error) {
+          console.error('Error in periodic stats report:', error);
+        }
+      }, 10 * 60 * 1000); // 10分
 
       // 前回の処理時刻を取得
       try {
@@ -209,6 +269,10 @@ export class BlueskyBot {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+    }
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+      this.statsInterval = null;
     }
     this.isWatching = false;
   }
