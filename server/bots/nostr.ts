@@ -84,15 +84,15 @@ export class NostrBot {
         this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
         console.log('Restored last processed time:', this.lastProcessedAt);
       } else {
-        // 初回起動時は現在時刻を設定
-        this.lastProcessedAt = Math.floor(Date.now() / 1000);
+        // 初回起動時は5分前の時刻を設定（直近のメッセージのみを処理）
+        this.lastProcessedAt = Math.floor((Date.now() - 5 * 60 * 1000) / 1000);
         await storage.updateBotState('nostr', new Date(this.lastProcessedAt * 1000));
         console.log('Initialized last processed time:', this.lastProcessedAt);
       }
     } catch (error) {
       console.error('Error initializing bot state:', error);
-      // エラー時は現在時刻を設定
-      this.lastProcessedAt = Math.floor(Date.now() / 1000);
+      // エラー時は5分前の時刻を設定
+      this.lastProcessedAt = Math.floor((Date.now() - 5 * 60 * 1000) / 1000);
     }
   }
 
@@ -132,7 +132,11 @@ export class NostrBot {
             return;
           }
 
-          console.log('Received encrypted DM from:', event.pubkey);
+          console.log('Received encrypted DM:', {
+            from: event.pubkey,
+            created_at: event.created_at,
+            last_processed_at: this.lastProcessedAt
+          });
 
           const content = await nip04.decrypt(
             privateKey,
