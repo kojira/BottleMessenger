@@ -10,17 +10,17 @@
    - アカウント: [@bskychan.bsky.social](https://bsky.app/profile/bskychan.bsky.social)
 
 2. プロフィールページで「フォロー」ボタンをクリックします。
-   ![フォローボタン](./images/follow-button.png)
+   ![フォローボタン](./images/follow-button.svg)
 
 3. フォロバが来るまでしばらくお待ちください（通常1日以内）。
-   ![フォロバ待ち](./images/follow-back.png)
+   ![フォロバ待ち](./images/follow-back.svg)
 
 ## 2. コマンドの使い方
 
 ### 2.1 ボトルメールを流す
 
 1. ボットアカウント (@bskychan.bsky.social) にDMを送信します。
-   ![DMを開く](./images/open-dm.png)
+   ![DMを開く](./images/dm-send.svg)
 
 2. 以下のフォーマットでメッセージを送信します：
    ```
@@ -30,10 +30,9 @@
    ```
    /new [メッセージ内容]
    ```
-   ![メッセージを流す](./images/send-bottle.png)
+   ![メッセージを流す](./images/command-example.svg)
 
 3. ボットから「ボトルメールを放流しました！🌊」という確認メッセージが返ってきます。
-   ![確認メッセージ](./images/confirmation.png)
 
 ### 2.2 ボトルメールを拾う
 
@@ -45,10 +44,8 @@
    ```
    /check
    ```
-   ![ボトルを拾う](./images/check-bottle.png)
 
 2. ランダムなボトルメールが届きます。
-   ![受信したボトル](./images/received-bottle.png)
 
 ### 2.3 ボトルメールに返信する
 
@@ -62,10 +59,8 @@
    ```
    /reply 123 [返信内容]
    ```
-   ![返信する](./images/reply-bottle.png)
 
 3. ボットから返信完了のメッセージが届きます。
-   ![返信完了](./images/reply-confirmation.png)
 
 ### 2.4 その他のコマンド
 
@@ -77,13 +72,11 @@
   ```
   /list
   ```
-  ![履歴確認](./images/list-bottles.png)
 
 - 統計情報の確認:
   ```
   stats
   ```
-  ![統計確認](./images/stats.png)
 
 - ヘルプの表示:
   ```
@@ -93,7 +86,6 @@
   ```
   /help
   ```
-  ![ヘルプ表示](./images/help.png)
 
 ## 注意事項
 
