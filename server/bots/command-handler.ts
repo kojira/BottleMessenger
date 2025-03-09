@@ -10,35 +10,51 @@ interface CommandResponse {
 export class CommandHandler {
   async handleCommand(platform: string, userId: string, command: string): Promise<CommandResponse> {
     const parts = command.trim().split(/\s+/);
-    const cmd = parts[0].toLowerCase();
+    let cmd = parts[0].toLowerCase();
+
+    // スラッシュがある場合は削除
+    if (cmd.startsWith('/')) {
+      cmd = cmd.substring(1);
+    }
+
+    // bottle コマンドの場合は第2引数を取得
+    if (cmd === 'bottle' && parts.length > 1) {
+      cmd = parts[1].toLowerCase();
+      parts.splice(1, 1); // 第2引数を削除
+    }
 
     console.log(`Handling command: ${cmd} from ${platform}:${userId}`);
 
     try {
       switch (cmd) {
-        case "/help":
+        case "help":
           return this.handleHelp();
-        case "/bottle":
-          if (parts.length < 2) {
-            return { content: "使用方法: /bottle [new|check|reply|list|stats]", error: true };
-          }
-          const subCmd = parts[1].toLowerCase();
-          switch (subCmd) {
-            case "new":
-              return await this.handleNewBottle(platform, userId, parts.slice(2).join(" "));
-            case "check":
-              return await this.handleCheckBottle(platform, userId);
-            case "reply":
-              return await this.handleReplyBottle(platform, userId, parts[2], parts.slice(3).join(" "));
-            case "list":
-              return await this.handleListBottles(platform, userId);
-            case "stats":
-              return await this.handleStats(platform, userId);
-            default:
-              return { content: "無効なサブコマンドです。/help で使用可能なコマンドを確認できます。", error: true };
-          }
+
+        // newコマンドとそのエイリアス
+        case "new":
+        case "流す":
+          return await this.handleNewBottle(platform, userId, parts.slice(1).join(" "));
+
+        // checkコマンドとそのエイリアス
+        case "check":
+        case "拾う":
+          return await this.handleCheckBottle(platform, userId);
+
+        // replyコマンドとそのエイリアス
+        case "reply":
+        case "返信":
+          return await this.handleReplyBottle(platform, userId, parts[1], parts.slice(2).join(" "));
+
+        // listコマンドとそのエイリアス
+        case "list":
+        case "リスト":
+          return await this.handleListBottles(platform, userId);
+
+        case "stats":
+          return await this.handleStats(platform, userId);
+
         default:
-          return { content: "無効なコマンドです。/help で使用可能なコマンドを確認できます。", error: true };
+          return { content: "無効なコマンドです。helpで使用可能なコマンドを確認できます。", error: true };
       }
     } catch (error) {
       console.error("Command handling error:", error);
@@ -49,15 +65,18 @@ export class CommandHandler {
   private handleHelp(): CommandResponse {
     return {
       content: `使用可能なコマンド:
-/bottle new [メッセージ] - 新しいボトルメールを作成
-/bottle check - 未読のボトルメールを確認
-/bottle reply [ID] [メッセージ] - ボトルメールに返信
-/bottle list - 送信したボトルメールの一覧
-/bottle stats - 統計情報を表示
-/help - このヘルプを表示`
+new [メッセージ] または 流す [メッセージ] - 新しいボトルメールを作成
+check または 拾う - 未読のボトルメールを確認
+reply [ID] [メッセージ] または 返信 [ID] [メッセージ] - ボトルメールに返信
+list または リスト - 送信したボトルメールの一覧
+stats - 統計情報を表示
+help - このヘルプを表示
+
+※コマンドの先頭のスラッシュ (/) は省略可能です。`
     };
   }
 
+  // 他のメソッドは変更なし
   private async handleNewBottle(platform: string, userId: string, content: string): Promise<CommandResponse> {
     if (!content) {
       return { content: "メッセージを入力してください。", error: true };
