@@ -10,7 +10,7 @@ A cross-platform message relay bot that bridges Bluesky and Nostr social network
 
 - **Cross-Platform Messaging**: Relay messages between Bluesky and Nostr
 - **Bottle Mail System**: Send and receive "bottle mail" messages across platforms
-- **Real-time Notifications**: Get instant notifications when your messages receive replies
+- **Real-time Notifications**: Get instant notifications when your messages receive replies (Note: Bluesky notifications use polling with 30-second intervals)
 - **Multi-Language Support**: Full support for both Japanese and English
 - **Interactive Commands**: Simple and intuitive command system
 - **Dynamic Statistics**: Track message trends and user engagement
@@ -36,6 +36,10 @@ A cross-platform message relay bot that bridges Bluesky and Nostr social network
    - `NOSTR_RELAYS`: JSON array of Nostr relay URLs
 4. Start the server: `npm run dev`
 
+### Dashboard Access
+
+The dashboard is intended for personal use only and does not include authentication. Please ensure you deploy it in a secure environment and do not expose it to public access.
+
 ### Development Guide
 
 1. **Database Setup**
@@ -44,12 +48,12 @@ A cross-platform message relay bot that bridges Bluesky and Nostr social network
 
 2. **API Documentation**
    - Backend runs on Express.js
-   - WebSocket connections for real-time updates
+   - WebSocket connections for real-time updates (Nostr only)
    - RESTful endpoints for command processing
+   - Bluesky uses polling with 30-second intervals
 
 3. **Testing**
    - Run `npm test` for unit tests
-   - Use `/test/dm` endpoint for testing message relay
 
 ### Technology Stack
 
@@ -74,7 +78,7 @@ BlueskyとNostrのソーシャルネットワークを橋渡しする、クロ�
 
 - **クロスプラットフォームメッセージング**: BlueskyとNostr間でメッセージを中継
 - **ボトルメールシステム**: プラットフォームを越えてボトルメールを送受信
-- **リアルタイム通知**: メッセージへの返信をすぐに通知
+- **リアルタイム通知**: メッセージへの返信をすぐに通知（※Blueskyは30秒間隔のポーリング方式）
 - **多言語対応**: 日本語と英語の完全サポート
 - **インタラクティブなコマンド**: シンプルで直感的なコマンドシステム
 - **動的な統計情報**: メッセージの傾向とユーザーエンゲージメントを追跡
@@ -100,6 +104,10 @@ BlueskyとNostrのソーシャルネットワークを橋渡しする、クロ�
    - `NOSTR_RELAYS`: NostrリレーURLのJSON配列
 4. サーバーを起動: `npm run dev`
 
+### ダッシュボードについて
+
+ダッシュボードは個人利用を目的としており、認証機能は実装されていません。セキュアな環境にデプロイし、一般公開は避けてください。
+
 ### 開発ガイド
 
 1. **データベースのセットアップ**
@@ -108,12 +116,12 @@ BlueskyとNostrのソーシャルネットワークを橋渡しする、クロ�
 
 2. **API仕様**
    - バックエンドはExpress.jsで実装
-   - WebSocketによるリアルタイム更新
+   - WebSocketによるリアルタイム更新（Nostrのみ）
    - RESTfulエンドポイントでコマンドを処理
+   - Blueskyは30秒間隔のポーリング方式を使用
 
 3. **テスト**
    - `npm test`でユニットテストを実行
-   - `/test/dm`エンドポイントでメッセージリレーをテスト
 
 ### 技術スタック
 
