@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="400" height="120" fill="#ffffff" rx="8"/>
+  
+  <!-- アバターの枠 -->
+  <circle cx="60" cy="60" r="30" fill="#f0f0f0"/>
+  
+  <!-- ユーザー名とハンドル -->
+  <text x="110" y="50" font-family="Arial" font-size="16" font-weight="bold">ぼとるめーる</text>
+  <text x="110" y="70" font-family="Arial" font-size="14" fill="#666666">@bskychan.bsky.social</text>
+  
+  <!-- フォロー中ボタン -->
+  <rect x="280" y="40" width="80" height="32" rx="16" fill="#e6e6e6"/>
+  <text x="320" y="62" font-family="Arial" font-size="14" fill="#666666" text-anchor="middle">フォロー中</text>
+  
+  <!-- フォローバック待ち表示 -->
+  <rect x="110" y="85" width="200" height="20" rx="4" fill="#fff8e1"/>
+  <text x="210" y="100" font-family="Arial" font-size="12" fill="#b0803c" text-anchor="middle">フォローバックをお待ちください</text>
+</svg>

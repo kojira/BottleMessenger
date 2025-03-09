@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="400" height="200" fill="#ffffff" rx="8"/>
+  
+  <!-- ヘッダー -->
+  <rect width="400" height="40" fill="#f7f7f7" rx="8 8 0 0"/>
+  <text x="20" y="27" font-family="Arial" font-size="14" font-weight="bold">ぼとるめーる (@bskychan.bsky.social)</text>
+  
+  <!-- メッセージ入力欄 -->
+  <rect x="20" y="60" width="360" height="100" fill="#f7f7f7" rx="8"/>
+  <text x="30" y="85" font-family="Arial" font-size="14" fill="#666666">流す おはようございます。今日も頑張りましょう！</text>
+  
+  <!-- 送信ボタン -->
+  <rect x="300" y="170" width="80" height="32" rx="16" fill="#0085ff"/>
+  <text x="340" y="192" font-family="Arial" font-size="14" fill="white" text-anchor="middle">送信</text>
+</svg>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="400" height="120" fill="#ffffff" rx="8"/>
+  
+  <!-- アバターの枠 -->
+  <circle cx="60" cy="60" r="30" fill="#f0f0f0"/>
+  
+  <!-- ユーザー名とハンドル -->
+  <text x="110" y="50" font-family="Arial" font-size="16" font-weight="bold">ぼとるめーる</text>
+  <text x="110" y="70" font-family="Arial" font-size="14" fill="#666666">@bskychan.bsky.social</text>
+  
+  <!-- フォローボタン -->
+  <rect x="280" y="40" width="80" height="32" rx="16" fill="#0085ff"/>
+  <text x="320" y="62" font-family="Arial" font-size="14" fill="white" text-anchor="middle">フォロー</text>
+</svg>
