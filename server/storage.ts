@@ -36,6 +36,14 @@ export interface IStorage {
   // Bot state operations
   getBotState(platform: string): Promise<BotState | null>;
   updateBotState(platform: string, lastProcessedAt: Date): Promise<BotState>;
+
+  // 全体の統計情報を取得
+  getGlobalStats(): Promise<{
+    totalBottles: number;
+    totalReplies: number;
+    activeUsers: number;
+    activeBottles: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -268,6 +276,39 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return state;
+  }
+
+  async getGlobalStats() {
+    // ボトルメールの総数を取得
+    const [{ totalBottles }] = await db
+      .select({ totalBottles: sql<number>`COUNT(*)` })
+      .from(bottles);
+
+    // 返信の総数を取得
+    const [{ totalReplies }] = await db
+      .select({ totalReplies: sql<number>`COUNT(*)` })
+      .from(bottleReplies);
+
+    // アクティブなユーザー数を取得（過去24時間以内にアクティビティのあるユーザー）
+    const [{ activeUsers }] = await db
+      .select({ activeUsers: sql<number>`COUNT(DISTINCT userId)` })
+      .from(userStats)
+      .where(
+        sql`${userStats.lastActivity} > NOW() - INTERVAL '24 hours'`
+      );
+
+    // アクティブなボトルの数を取得
+    const [{ activeBottles }] = await db
+      .select({ activeBottles: sql<number>`COUNT(*)` })
+      .from(bottles)
+      .where(eq(bottles.status, "active"));
+
+    return {
+      totalBottles,
+      totalReplies,
+      activeUsers,
+      activeBottles
+    };
   }
 }
 

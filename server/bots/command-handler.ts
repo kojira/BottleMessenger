@@ -28,6 +28,7 @@ export class CommandHandler {
     try {
       switch (cmd) {
         case "help":
+        case "ヘルプ":
           return this.handleHelp();
 
         // newコマンドとそのエイリアス
@@ -70,13 +71,12 @@ check または 拾う - 未読のボトルメールを確認
 reply [ID] [メッセージ] または 返信 [ID] [メッセージ] - ボトルメールに返信
 list または リスト - 送信したボトルメールの一覧
 stats - 統計情報を表示
-help - このヘルプを表示
+help または ヘルプ - このヘルプを表示
 
 ※コマンドの先頭のスラッシュ (/) は省略可能です。`
     };
   }
 
-  // 他のメソッドは変更なし
   private async handleNewBottle(platform: string, userId: string, content: string): Promise<CommandResponse> {
     if (!content) {
       return { content: "メッセージを入力してください。", error: true };
@@ -204,7 +204,7 @@ help - このヘルプを表示
 
     console.log(`Stats retrieved: sent=${stats.bottlesSent}, received=${stats.bottlesReceived}, replies=${stats.repliesSent}`);
     return {
-      content: `📊 統計情報
+      content: `📊 あなたの統計情報
 送信したボトルメール: ${stats.bottlesSent}通
 受信したボトルメール: ${stats.bottlesReceived}通
 送信した返信: ${stats.repliesSent}通

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { type Settings, type Message } from "@shared/schema";
+import { type Settings, type Message, type GlobalStats } from "@shared/schema"; // Added GlobalStats type import
 import { RefreshCw } from "lucide-react";
 
 export default function Dashboard() {
@@ -23,6 +23,10 @@ export default function Dashboard() {
 
   const { data: messages, refetch: refetchMessages } = useQuery<Message[]>({ 
     queryKey: ["/api/messages", { limit: 5 }]
+  });
+
+  const { data: globalStats } = useQuery<GlobalStats>({ // Added type to useQuery
+    queryKey: ["/api/stats/global"]
   });
 
   const checkNotifications = useMutation({
@@ -88,6 +92,32 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold">Dashboard</h1>
 
       <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Global Stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Total Bottles</p>
+                <p className="font-medium">{globalStats?.totalBottles || 0}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Total Replies</p>
+                <p className="font-medium">{globalStats?.totalReplies || 0}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Active Users (24h)</p>
+                <p className="font-medium">{globalStats?.activeUsers || 0}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Active Bottles</p>
+                <p className="font-medium">{globalStats?.activeBottles || 0}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Bot Status</CardTitle>

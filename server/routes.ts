@@ -134,5 +134,16 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // 全体の統計情報を取得するエンドポイントを追加
+  app.get("/api/stats/global", async (_req, res) => {
+    try {
+      const stats = await storage.getGlobalStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error getting global stats:', error);
+      res.status(500).json({ error: "Failed to get global stats" });
+    }
+  });
+
   return server;
 }
