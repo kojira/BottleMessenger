@@ -23,16 +23,31 @@ interface NostrEvent {
 export class NostrBot {
   private credentials: NostrCredentials;
   private pool: SimplePool;
-  private relayUrls = ['wss://relay.damus.io', 'wss://nos.lol'];
+  private relayUrls: string[];
   private activeSubscriptions: ReturnType<SimplePool['sub']>[] = [];
   private isWatching = false;
   private lastProcessedAt: number | null = null;
   private statsInterval: NodeJS.Timeout | null = null;
 
-  constructor(credentials: NostrCredentials) {
+  constructor(credentials: NostrCredentials, relays?: string[]) {
     console.log('Initializing NostrBot...');
     this.credentials = credentials;
+    this.relayUrls = relays || ['wss://relay.damus.io', 'wss://nos.lol'];
     this.pool = new SimplePool();
+  }
+
+  // リレーURLの更新メソッドを追加
+  updateRelays(relays: string[]) {
+    console.log('Updating Nostr relays to:', relays);
+    this.relayUrls = relays;
+
+    // 既存の接続を閉じて再接続
+    if (this.isWatching) {
+      this.cleanup();
+      this.watchDMs().catch(error => {
+        console.error('Failed to restart Nostr bot after relay update:', error);
+      });
+    }
   }
 
   async sendDM(recipient: string, content: string): Promise<string | null> {

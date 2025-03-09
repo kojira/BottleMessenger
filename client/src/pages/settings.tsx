@@ -28,6 +28,7 @@ function SettingsPage() {
       blueskyHandle: "",
       blueskyPassword: "",
       nostrPrivateKey: "",
+      nostrRelays: "",
       enabled: "true",
     },
     values: settings || undefined,
@@ -35,6 +36,26 @@ function SettingsPage() {
 
   const updateSettings = useMutation({
     mutationFn: async (data: any) => {
+      // JSONとして有効なリレーリストかチェック
+      try {
+        const relays = JSON.parse(data.nostrRelays);
+        if (!Array.isArray(relays)) {
+          throw new Error("Relays must be a JSON array");
+        }
+        for (const relay of relays) {
+          if (typeof relay !== "string" || !relay.startsWith("wss://")) {
+            throw new Error("Each relay must be a WebSocket URL starting with wss://");
+          }
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Invalid relay format. Please enter a valid JSON array of WebSocket URLs.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await apiRequest("POST", "/api/settings", data);
     },
     onSuccess: () => {
@@ -106,6 +127,19 @@ function SettingsPage() {
                   <FormLabel>Private Key</FormLabel>
                   <FormControl>
                     <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="nostrRelays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Relays (JSON array)</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder='["wss://relay.damus.io", "wss://nos.lol"]' />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

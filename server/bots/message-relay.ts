@@ -55,9 +55,10 @@ export class MessageRelay {
 
     if (settings.nostrPrivateKey) {
       console.log('Configuring Nostr bot...');
+      const nostrRelays = JSON.parse(settings.nostrRelays);
       this.nostrBot = new NostrBot({
         privateKey: settings.nostrPrivateKey
-      });
+      }, nostrRelays);
     }
   }
 
@@ -71,8 +72,8 @@ export class MessageRelay {
       });
 
       // Get the appropriate bot based on target platform
-      const targetBot = message.targetPlatform === 'bluesky' 
-        ? this.blueskyBot 
+      const targetBot = message.targetPlatform === 'bluesky'
+        ? this.blueskyBot
         : this.nostrBot;
 
       if (!targetBot) {

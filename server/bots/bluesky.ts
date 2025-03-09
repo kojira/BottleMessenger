@@ -185,9 +185,8 @@ export class BlueskyBot {
               continue;
             }
 
-            if (message.text.startsWith('/')) {
-              await this.processCommand(message.sender.did, message.text);
-            }
+            // スラッシュの有無に関わらずすべてのメッセージをコマンドとして処理
+            await this.processCommand(message.sender.did, message.text);
           }
         } catch (error) {
           console.error('Error processing conversation:', error);

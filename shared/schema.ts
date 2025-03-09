@@ -7,6 +7,7 @@ export const botSettings = pgTable("bot_settings", {
   blueskyHandle: text("bluesky_handle").notNull(),
   blueskyPassword: text("bluesky_password").notNull(),
   nostrPrivateKey: text("nostr_private_key").notNull(),
+  nostrRelays: text("nostr_relays").notNull().default('["wss://relay.damus.io", "wss://nos.lol"]'),
   enabled: text("enabled").notNull().default("true"),
 });
 
