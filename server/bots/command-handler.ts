@@ -133,10 +133,15 @@ export class CommandHandler {
     });
 
     try {
+      // プラットフォーム特有の送信者識別子を使用
+      const sourceUser = bottle.senderPlatform === 'bluesky' ? bottle.senderId : 
+        bottle.senderPlatform === 'nostr' ? bottle.senderId : 
+        bottle.senderId;  // デフォルトは元の送信者ID
+
       await messageRelay.relayMessage({
         sourcePlatform: platform,
         sourceId: userId,
-        sourceUser: userId,
+        sourceUser,  // プラットフォームに応じた送信者識別子を使用
         targetPlatform: bottle.senderPlatform,
         content: `あなたのボトルメール #${id} に返信がありました:\n\n${content}`,
         status: "pending"
