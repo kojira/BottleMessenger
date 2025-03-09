@@ -76,6 +76,26 @@ export class NostrBot {
     }
   }
 
+  private async initializeState(): Promise<void> {
+    // 前回の処理時刻を取得
+    try {
+      const state = await storage.getBotState('nostr');
+      if (state) {
+        this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
+        console.log('Restored last processed time:', this.lastProcessedAt);
+      } else {
+        // 初回起動時は現在時刻を設定
+        this.lastProcessedAt = Math.floor(Date.now() / 1000);
+        await storage.updateBotState('nostr', new Date(this.lastProcessedAt * 1000));
+        console.log('Initialized last processed time:', this.lastProcessedAt);
+      }
+    } catch (error) {
+      console.error('Error initializing bot state:', error);
+      // エラー時は現在時刻を設定
+      this.lastProcessedAt = Math.floor(Date.now() / 1000);
+    }
+  }
+
   async watchDMs(): Promise<void> {
     if (this.isWatching) {
       console.log('Already watching for DMs');
@@ -88,19 +108,9 @@ export class NostrBot {
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
-      // 前回の処理時刻を取得
-      try {
-        const state = await storage.getBotState('nostr');
-        if (state) {
-          this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
-          console.log('Restored last processed time:', this.lastProcessedAt);
-        } else {
-          console.log('No previous state found, starting fresh');
-        }
-      } catch (error) {
-        console.error('Error retrieving bot state:', error);
-        // エラーが発生しても処理は継続
-      }
+      // 初期化時に状態を復元
+      await this.initializeState();
+      console.log('Bot state initialized');
 
       console.log('Watching for DMs to pubkey:', pubkey);
 
