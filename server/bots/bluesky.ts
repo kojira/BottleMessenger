@@ -54,14 +54,15 @@ export class BlueskyBot {
       await this.ensureSession();
       console.log(`Sending DM to ${recipientHandle}: ${content}`);
 
-      // 受信者のプロフィールを取得
-      console.log('Getting recipient profile...');
+      // 受信者のプロフィールを取得してDIDを取得
       const profileResponse = await this.agent.getProfile({ actor: recipientHandle });
+      if (!profileResponse.success) {
+        throw new Error('Failed to get recipient profile');
+      }
       const recipientDid = profileResponse.data.did;
       console.log('Recipient DID:', recipientDid);
 
       // 会話を取得または作成
-      console.log('Getting or creating conversation...');
       const convoResponse = await this.chatAgent.chat.bsky.convo.getConvoForMembers({ 
         members: [recipientDid] 
       });
@@ -69,7 +70,6 @@ export class BlueskyBot {
       console.log('Conversation ID:', convoId);
 
       // メッセージを送信
-      console.log('Sending message...');
       const response = await this.chatAgent.chat.bsky.convo.sendMessage({
         convoId,
         message: { text: content }
