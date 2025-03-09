@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { type InsertBottle, type InsertBottleReply, type InsertUserStats, bottleStatusSchema } from "@shared/schema";
+import { type InsertBottle, type InsertBottleReply } from "@shared/schema";
 import { messageRelay } from './message-relay';
 
 interface CommandResponse {
@@ -152,11 +152,9 @@ help または ヘルプ - このヘルプを表示
 
     // 返信権限チェック：
     // 1. ボトルを拾ったユーザーの場合は常に返信可能
-    // 2. ボトルの作成者の場合は、既に返信があれば返信可能
+    // 2. ボトルの作成者は、他のユーザーから返信があった場合のみ返信可能
     const isOriginalSender = platform === bottle.senderPlatform && userId === bottle.senderId;
-    const canReply = replier ?
-      (platform === replier.senderPlatform && userId === replier.senderId) || isOriginalSender :
-      true;
+    const canReply = isOriginalSender ? replier !== undefined : !replier || (replier.senderPlatform === platform && replier.senderId === userId);
 
     if (!canReply) {
       return { content: "このボトルメールへの返信権限がありません。", error: true };
@@ -180,7 +178,7 @@ help または ヘルプ - このヘルプを表示
           sourceId: userId,
           sourceUser: replier.senderId,
           targetPlatform: replier.senderPlatform,
-          content: `ボトルメール #${id} への返信に対する返信がありました:\n\n${content}\n\nfrom ${platform}`,
+          content: `あなたの返信に対して、ボトルメール #${id} の作成者から返信がありました:\n\n${content}\n\nfrom ${platform}`,
           status: "pending"
         });
       } else {
@@ -190,11 +188,10 @@ help または ヘルプ - このヘルプを表示
           sourceId: userId,
           sourceUser: bottle.senderId,
           targetPlatform: bottle.senderPlatform,
-          content: `ボトルメール #${id} への返信がありました:\n\n${content}\n\nfrom ${platform}`,
+          content: `ボトルメール #${id} に返信がありました:\n\n${content}\n\nfrom ${platform}`,
           status: "pending"
         });
       }
-      console.log('Notification sent');
     } catch (error) {
       console.error('Failed to notify:', error);
     }

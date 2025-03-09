@@ -8,43 +8,33 @@ export class MessageRelay {
   private nostrBot: NostrBot | null = null;
 
   async init() {
+    console.log('Initializing message relay...');
+    const settings = await storage.getSettings();
+
+    if (!settings) {
+      console.log('No settings found, waiting for configuration...');
+      return;
+    }
+
+    console.log('Setting up bots with configured credentials...');
+    await this.setupBots(settings);
+
+    // Start watching for DMs
     try {
-      console.log('Initializing message relay...');
-      const settings = await storage.getSettings();
-
-      if (!settings) {
-        console.log('No settings found, waiting for configuration...');
-        return;
-      }
-
-      console.log('Setting up bots with configured credentials...');
-      await this.setupBots(settings);
-
-      // Start watching for DMs
       if (this.blueskyBot) {
         console.log('Starting Bluesky DM watch...');
-        try {
-          await this.blueskyBot.watchDMs();
-        } catch (error) {
-          console.error('Error in Bluesky DM watch:', error);
-          // エラーをスローせず、ログに記録するだけ
-        }
+        await this.blueskyBot.watchDMs();
       }
 
       if (this.nostrBot) {
         console.log('Starting Nostr DM watch...');
-        try {
-          await this.nostrBot.watchDMs();
-        } catch (error) {
-          console.error('Error in Nostr DM watch:', error);
-          // エラーをスローせず、ログに記録するだけ
-        }
+        await this.nostrBot.watchDMs();
       }
 
       console.log('Message relay initialization completed');
     } catch (error) {
       console.error('Failed to initialize message relay:', error);
-      // エラーをスローせず、ログに記録するだけ
+      // 初期化エラーは記録するだけで、アプリケーションは継続して実行
     }
   }
 
@@ -59,10 +49,15 @@ export class MessageRelay {
 
     if (settings.nostrPrivateKey) {
       console.log('Configuring Nostr bot...');
-      const nostrRelays = JSON.parse(settings.nostrRelays);
-      this.nostrBot = new NostrBot({
-        privateKey: settings.nostrPrivateKey
-      }, nostrRelays);
+      try {
+        const nostrRelays = JSON.parse(settings.nostrRelays);
+        this.nostrBot = new NostrBot({
+          privateKey: settings.nostrPrivateKey
+        }, nostrRelays);
+      } catch (error) {
+        console.error('Failed to configure Nostr bot:', error);
+        this.nostrBot = null;
+      }
     }
   }
 
@@ -84,7 +79,7 @@ export class MessageRelay {
         throw new Error(`No bot available for platform ${message.targetPlatform}`);
       }
 
-      // Send message and ensure targetId is string | null
+      // Send message and get targetId
       const targetId = await targetBot.sendDM(message.sourceUser, message.content);
 
       // Update message status

@@ -1,4 +1,4 @@
-import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter, type SubEvent } from 'nostr-tools';
+import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
 import { storage } from '../storage';
@@ -21,8 +21,6 @@ interface NostrEvent {
 }
 
 export class NostrBot {
-  private agent: AtpAgent; // Added from edited code
-  private chatAgent: any; // Added from edited code
   private credentials: NostrCredentials;
   private pool: SimplePool;
   private relayUrls: string[];
@@ -41,23 +39,7 @@ export class NostrBot {
     this.pool = new SimplePool();
   }
 
-  // リレーURLの更新メソッドを追加
-  updateRelays(relays: string[]) {
-    console.log('Updating Nostr relays to:', relays);
-    this.relayUrls = relays;
-
-    // 既存の接続を閉じて再接続
-    if (this.isWatching) {
-      this.cleanup().catch(error => {
-        console.error('Error during cleanup:', error);
-      });
-      this.watchDMs().catch(error => {
-        console.error('Failed to restart Nostr bot after relay update:', error);
-      });
-    }
-  }
-
-  private async reconnect(): Promise<void> {
+  private async reconnect() {
     if (this.retryCount >= this.MAX_RETRIES) {
       console.error('Max retry attempts reached. Stopping reconnection attempts.');
       return;
@@ -75,24 +57,14 @@ export class NostrBot {
       console.log('Successfully reconnected to relays');
     } catch (error) {
       console.error('Reconnection attempt failed:', error);
-
-      // 再接続を試みる
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
       }
-
-      // 非同期関数を正しく処理するようにPromiseを使用
-      return new Promise<void>((resolve) => {
-        this.reconnectTimer = setTimeout(async () => {
-          try {
-            await this.reconnect();
-            resolve();
-          } catch (err) {
-            console.error('Error during reconnect:', err);
-            resolve(); // エラーが発生しても解決する
-          }
-        }, this.RECONNECT_DELAY);
-      });
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnect().catch(error => {
+          console.error('Error during reconnect:', error);
+        });
+      }, this.RECONNECT_DELAY);
     }
   }
 
@@ -277,8 +249,8 @@ export class NostrBot {
 
       sub.on('error', (error: any) => {
         console.error('Subscription error:', error);
-        this.reconnect().catch(err => {
-          console.error('Error during reconnect:', err);
+        this.reconnect().catch(error => {
+          console.error('Error during reconnect:', error);
         });
       });
 
@@ -288,10 +260,7 @@ export class NostrBot {
     } catch (error) {
       console.error('Failed to watch Nostr DMs:', error);
       this.isWatching = false;
-      // 初期化エラー時も再接続を試みる
-      this.reconnect().catch(err => {
-        console.error('Error during reconnect:', err);
-      });
+      throw error; // 上位のエラーハンドラーで処理される
     }
   }
 
