@@ -201,12 +201,15 @@ export class NostrBot {
       console.log('Bot state initialized');
 
       console.log('Watching for DMs to pubkey:', pubkey);
+      console.log('Current lastProcessedAt:', this.lastProcessedAt);
 
       const filter: Filter = {
         kinds: [4],
         '#p': [pubkey],
         since: this.lastProcessedAt || Math.floor(Date.now() / 1000)  // 現在時刻（UTC）を使用, or last processed time if available
       };
+
+      console.log('Using filter:', filter);
 
       // Create subscription
       console.log('Creating subscription with filter:', filter);
@@ -224,7 +227,6 @@ export class NostrBot {
             from: event.pubkey,
             created_at: event.created_at
           });
-
 
           const content = await nip04.decrypt(
             privateKey,
@@ -246,6 +248,12 @@ export class NostrBot {
             await this.sendDM(event.pubkey, response.content);
             console.log('Response sent successfully');
           }
+
+          // メッセージを処理した後にlastProcessedAtを更新
+          this.lastProcessedAt = event.created_at;
+          await storage.updateBotState('nostr', new Date(event.created_at * 1000));
+          console.log('Updated last processed time:', new Date(event.created_at * 1000));
+
         } catch (error) {
           console.error('Failed to process DM:', error);
         }
