@@ -1,4 +1,4 @@
-import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
+import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter, type SubEvent } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
 import { storage } from '../storage';
@@ -25,9 +25,12 @@ export class NostrBot {
   private pool: SimplePool;
   private relayUrls: string[];
   private activeSubscriptions: ReturnType<SimplePool['sub']>[] = [];
-  private isWatching = false;
-  private lastProcessedAt: number | null = null;
+  private isWatching: boolean = false;
   private statsInterval: NodeJS.Timeout | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private readonly RECONNECT_DELAY = 5000; // 5秒後に再接続
+  private readonly MAX_RETRIES = 5; // 最大再試行回数
+  private retryCount = 0;
 
   constructor(credentials: NostrCredentials, relays?: string[]) {
     console.log('Initializing NostrBot...');
@@ -47,6 +50,34 @@ export class NostrBot {
       this.watchDMs().catch(error => {
         console.error('Failed to restart Nostr bot after relay update:', error);
       });
+    }
+  }
+
+  private async reconnect() {
+    if (this.retryCount >= this.MAX_RETRIES) {
+      console.error('Max retry attempts reached. Stopping reconnection attempts.');
+      return;
+    }
+
+    this.retryCount++;
+    console.log(`Attempting to reconnect (attempt ${this.retryCount}/${this.MAX_RETRIES})...`);
+
+    try {
+      await this.cleanup();
+      this.pool = new SimplePool();
+      await this.watchDMs();
+      this.retryCount = 0; // 成功したらリトライカウントをリセット
+      console.log('Successfully reconnected to relays');
+    } catch (error) {
+      console.error('Reconnection attempt failed:', error);
+
+      // 再接続を試みる
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+      }
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnect();
+      }, this.RECONNECT_DELAY);
     }
   }
 
@@ -77,43 +108,19 @@ export class NostrBot {
 
       console.log('Attempting to publish event:', { ...event, content: '[encrypted]' });
 
-      // Publish to relay
       try {
         await this.pool.publish(this.relayUrls, event);
         console.log('Successfully published DM');
         return event.id;
       } catch (error) {
         console.error('Failed to publish DM:', error);
+        // 送信エラー時に再接続を試みる
+        this.reconnect();
         return null;
       }
     } catch (error) {
       console.error('Failed to send Nostr DM:', error);
       return null;
-    }
-  }
-
-  private async initializeState(): Promise<void> {
-    // 前回の処理時刻を取得
-    try {
-      const state = await storage.getBotState('nostr');
-      if (state) {
-        this.lastProcessedAt = Math.floor(state.lastProcessedAt.getTime() / 1000);
-        console.log('Restored last processed time:', this.lastProcessedAt);
-      } else {
-        // 初回起動時は現在時刻を設定（新規メッセージのみを処理）
-        this.lastProcessedAt = Math.floor(Date.now() / 1000);
-        await storage.updateBotState('nostr', new Date(this.lastProcessedAt * 1000));
-        console.log('Initialized last processed time (current):', this.lastProcessedAt);
-      }
-    } catch (error) {
-      console.error('Error initializing bot state:', error);
-      // エラー時は現在時刻を設定
-      this.lastProcessedAt = Math.floor(Date.now() / 1000);
-      try {
-        await storage.updateBotState('nostr', new Date(this.lastProcessedAt * 1000));
-      } catch (e) {
-        console.error('Failed to save initial bot state:', e);
-      }
     }
   }
 
@@ -141,6 +148,8 @@ export class NostrBot {
         return event.id;
       } catch (error) {
         console.error('Failed to publish event:', error);
+        // 投稿エラー時に再接続を試みる
+        this.reconnect();
         return null;
       }
     } catch (error) {
@@ -196,17 +205,12 @@ export class NostrBot {
         }
       }, 10 * 60 * 1000); // 10分
 
-      // 初期化時に状態を復元
-      await this.initializeState();
-      console.log('Bot state initialized');
-
       console.log('Watching for DMs to pubkey:', pubkey);
-      console.log('Current lastProcessedAt:', this.lastProcessedAt);
 
       const filter: Filter = {
         kinds: [4],
         '#p': [pubkey],
-        since: this.lastProcessedAt || Math.floor(Date.now() / 1000)  // 現在時刻（UTC）を使用, or last processed time if available
+        since: Math.floor(Date.now() / 1000)  // 常に現在時刻以降のメッセージのみを取得
       };
 
       console.log('Using filter:', filter);
@@ -249,14 +253,18 @@ export class NostrBot {
             console.log('Response sent successfully');
           }
 
-          // メッセージを処理した後にlastProcessedAtを更新
-          this.lastProcessedAt = event.created_at;
-          await storage.updateBotState('nostr', new Date(event.created_at * 1000));
-          console.log('Updated last processed time:', new Date(event.created_at * 1000));
-
         } catch (error) {
           console.error('Failed to process DM:', error);
         }
+      });
+
+      sub.on('eose', () => {
+        console.log('End of stored events');
+      });
+
+      sub.on('error', (error: Error) => {
+        console.error('Subscription error:', error);
+        this.reconnect();
       });
 
       this.activeSubscriptions.push(sub);
@@ -265,19 +273,10 @@ export class NostrBot {
     } catch (error) {
       console.error('Failed to watch Nostr DMs:', error);
       this.isWatching = false;
+      // 初期化エラー時も再接続を試みる
+      this.reconnect();
       throw error;
     }
-  }
-
-  async cleanup(): Promise<void> {
-    console.log('Cleaning up Nostr bot...');
-    this.isWatching = false;
-    if (this.statsInterval) {
-      clearInterval(this.statsInterval);
-      this.statsInterval = null;
-    }
-    this.closeSubscriptions();
-    await this.pool.close();
   }
 
   private closeSubscriptions(): void {
@@ -289,5 +288,24 @@ export class NostrBot {
       }
     });
     this.activeSubscriptions = [];
+  }
+
+  async cleanup(): Promise<void> {
+    console.log('Cleaning up Nostr bot...');
+    this.isWatching = false;
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+      this.statsInterval = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.closeSubscriptions();
+    try {
+      await this.pool.close(this.relayUrls);
+    } catch (error) {
+      console.error('Error closing pool:', error);
+    }
   }
 }
