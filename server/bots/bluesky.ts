@@ -105,10 +105,18 @@ export class BlueskyBot {
           });
 
           for (const message of messagesResponse.data.messages) {
+            // メッセージの詳細をログ出力
             console.log('Processing message:', {
-              sender: message.sender.handle,
-              text: message.text
+              sender: message.sender,
+              text: message.text,
+              createdAt: message.createdAt
             });
+
+            // 送信者情報の存在確認
+            if (!message.sender?.handle) {
+              console.log('Skipping message with invalid sender');
+              continue;
+            }
 
             if (message.text.startsWith('/')) {
               console.log('Processing command from:', message.sender.handle);
