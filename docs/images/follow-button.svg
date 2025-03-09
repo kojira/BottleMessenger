@@ -4,7 +4,7 @@
   <rect width="400" height="120" fill="#ffffff" rx="8"/>
 
   <!-- アバターの画像 -->
-  <image x="30" y="30" width="60" height="60" href="https://kojira.io/blueskychan.webp"/>
+  <image x="30" y="30" width="60" height="60" href="./blueskychan.webp"/>
 
   <!-- ユーザー名とハンドル -->
   <text x="110" y="50" font-family="Arial" font-size="16" font-weight="bold">Blueskyちゃん</text>
