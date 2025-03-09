@@ -11,8 +11,18 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { type Settings, type Message, type GlobalStats } from "@shared/schema"; // Added GlobalStats type import
+import { type Settings, type Message, type GlobalStats } from "@shared/schema";
 import { RefreshCw } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -25,9 +35,18 @@ export default function Dashboard() {
     queryKey: ["/api/messages", { limit: 5 }]
   });
 
-  const { data: globalStats } = useQuery<GlobalStats>({ // Added type to useQuery
+  const { data: globalStats } = useQuery<GlobalStats>({
     queryKey: ["/api/stats/global"]
   });
+
+  // 日付データをフォーマット
+  const formattedDailyData = globalStats?.dailyStats.map(stat => ({
+    date: new Date(stat.date).toLocaleDateString(),
+    bottles: stat.bottleCount,
+    replies: globalStats?.dailyReplies.find(
+      reply => new Date(reply.date).toLocaleDateString() === new Date(stat.date).toLocaleDateString()
+    )?.replyCount || 0
+  }));
 
   const checkNotifications = useMutation({
     mutationFn: async () => {
@@ -92,6 +111,7 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold">Dashboard</h1>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* 全体の統計情報 */}
         <Card>
           <CardHeader>
             <CardTitle>Global Stats</CardTitle>
@@ -114,6 +134,70 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Active Bottles</p>
                 <p className="font-medium">{globalStats?.activeBottles || 0}</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* プラットフォーム別の統計情報 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Platform Stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {globalStats?.platformStats.map(stat => (
+                <div key={stat.platform} className="space-y-2">
+                  <h3 className="font-medium">{stat.platform}</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Users</p>
+                      <p className="text-lg font-medium">{stat.userCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Bottles</p>
+                      <p className="text-lg font-medium">{stat.bottleCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Replies</p>
+                      <p className="text-lg font-medium">{stat.replyCount}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* アクティビティグラフ */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Activity Trends (Last 7 Days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={formattedDailyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="bottles"
+                    name="Bottles"
+                    stroke="#8884d8"
+                    activeDot={{ r: 8 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="replies"
+                    name="Replies"
+                    stroke="#82ca9d"
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

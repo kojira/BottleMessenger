@@ -86,3 +86,31 @@ export type InsertBotState = z.infer<typeof botStateSchema>;
 export const platformSchema = z.enum(["bluesky", "nostr"]);
 export const statusSchema = z.enum(["pending", "sent", "failed"]);
 export const bottleStatusSchema = z.enum(["active", "archived"]);
+
+// 既存のエクスポートの後に追加
+export interface PlatformStats {
+  platform: string;
+  userCount: number;
+  bottleCount: number;
+  replyCount: number;
+}
+
+export interface DailyStats {
+  date: string;
+  bottleCount: number;
+}
+
+export interface DailyReplies {
+  date: string;
+  replyCount: number;
+}
+
+export interface GlobalStats {
+  totalBottles: number;
+  totalReplies: number;
+  activeUsers: number;
+  activeBottles: number;
+  platformStats: PlatformStats[];
+  dailyStats: DailyStats[];
+  dailyReplies: DailyReplies[];
+}

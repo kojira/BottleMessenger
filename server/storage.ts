@@ -43,6 +43,9 @@ export interface IStorage {
     totalReplies: number;
     activeUsers: number;
     activeBottles: number;
+    platformStats: { platform: string; userCount: number; bottleCount: number; replyCount: number }[];
+    dailyStats: { date: string; bottleCount: number }[];
+    dailyReplies: { date: string; replyCount: number }[];
   }>;
 }
 
@@ -291,7 +294,7 @@ export class DatabaseStorage implements IStorage {
 
     // アクティブなユーザー数を取得（過去24時間以内にアクティビティのあるユーザー）
     const [{ activeUsers }] = await db
-      .select({ activeUsers: sql<number>`COUNT(DISTINCT userId)` })
+      .select({ activeUsers: sql<number>`COUNT(DISTINCT "user_id")` })
       .from(userStats)
       .where(
         sql`${userStats.lastActivity} > NOW() - INTERVAL '24 hours'`
@@ -303,11 +306,46 @@ export class DatabaseStorage implements IStorage {
       .from(bottles)
       .where(eq(bottles.status, "active"));
 
+    // プラットフォーム別の統計を取得
+    const platformStats = await db
+      .select({
+        platform: userStats.platform,
+        userCount: sql<number>`COUNT(DISTINCT "user_id")`,
+        bottleCount: sql<number>`SUM(${userStats.bottlesSent})`,
+        replyCount: sql<number>`SUM(${userStats.repliesSent})`
+      })
+      .from(userStats)
+      .groupBy(userStats.platform);
+
+    // 過去7日間の日別統計を取得
+    const dailyStats = await db
+      .select({
+        date: sql<string>`DATE_TRUNC('day', ${bottles.createdAt})`,
+        bottleCount: sql<number>`COUNT(*)`,
+      })
+      .from(bottles)
+      .where(sql`${bottles.createdAt} > NOW() - INTERVAL '7 days'`)
+      .groupBy(sql`DATE_TRUNC('day', ${bottles.createdAt})`)
+      .orderBy(sql`DATE_TRUNC('day', ${bottles.createdAt})`);
+
+    const dailyReplies = await db
+      .select({
+        date: sql<string>`DATE_TRUNC('day', ${bottleReplies.createdAt})`,
+        replyCount: sql<number>`COUNT(*)`,
+      })
+      .from(bottleReplies)
+      .where(sql`${bottleReplies.createdAt} > NOW() - INTERVAL '7 days'`)
+      .groupBy(sql`DATE_TRUNC('day', ${bottleReplies.createdAt})`)
+      .orderBy(sql`DATE_TRUNC('day', ${bottleReplies.createdAt})`);
+
     return {
       totalBottles,
       totalReplies,
       activeUsers,
-      activeBottles
+      activeBottles,
+      platformStats,
+      dailyStats,
+      dailyReplies
     };
   }
 }
