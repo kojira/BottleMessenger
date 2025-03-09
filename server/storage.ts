@@ -122,8 +122,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(bottles.status, "active"),
-          ne(bottles.senderId, userId),
-          ne(bottles.senderPlatform, platform)
+          ne(bottles.senderId, userId)
         )
       )
       .orderBy(sql`RANDOM()`)

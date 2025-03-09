@@ -102,15 +102,18 @@ export class BlueskyBot {
           });
 
           const messagesResponse = await this.chatAgent.chat.bsky.convo.getMessages({
-            convoId: convo.id
+            convoId: convo.id,
+            limit: 10  // 最新の10件に制限
           });
+
+          console.log(`Retrieved ${messagesResponse.data.messages.length} messages from conversation ${convo.id}`);
 
           for (const message of messagesResponse.data.messages) {
             // メッセージの詳細をログ出力
             console.log('Processing message:', {
-              sender: message.sender,
+              sender: message.sender?.did,
               text: message.text,
-              createdAt: message.sentAt // sentAtを使用
+              sentAt: message.sentAt
             });
 
             // 送信者情報の存在確認
@@ -120,7 +123,7 @@ export class BlueskyBot {
             }
 
             // 前回の処理時刻以降のメッセージのみを処理
-            const messageCreatedAt = new Date(message.sentAt); // sentAtを使用
+            const messageCreatedAt = new Date(message.sentAt);
             if (state && messageCreatedAt <= state.lastProcessedAt) {
               console.log('Skipping already processed message:', message.sentAt);
               continue;
@@ -184,7 +187,9 @@ export class BlueskyBot {
       // 30秒ごとに通知をチェック
       this.checkInterval = setInterval(async () => {
         try {
+          console.log('Running periodic DM check...');
           await this.checkNotifications();
+          console.log('Periodic DM check completed');
         } catch (error) {
           console.error('Error in periodic DM check:', error);
         }

@@ -88,8 +88,11 @@ export class CommandHandler {
       return { content: "現在読めるボトルメールはありません。" };
     }
 
+    // ボトルを取得したら即座にアーカイブ
+    await storage.archiveBottle(bottle.id);
     await storage.incrementUserStat(platform, userId, "bottlesReceived");
-    console.log(`Found bottle #${bottle.id}`);
+
+    console.log(`Found and archived bottle #${bottle.id}`);
     return { content: `ボトルメール #${bottle.id}\n\n${bottle.content}` };
   }
 
