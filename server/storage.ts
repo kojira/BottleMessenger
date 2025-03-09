@@ -43,7 +43,7 @@ export interface IStorage {
     totalReplies: number;
     activeUsers: number;
     activeBottles: number;
-    platformStats: { platform: string; userCount: number; bottleCount: number; replyCount: number }[];
+    platformStats: { platform: string; userCount: number; bottleCount: number; replyCount: number; mau: number }[];
     dailyStats: { date: string; bottleCount: number }[];
     dailyReplies: { date: string; replyCount: number }[];
   }>;
@@ -312,7 +312,11 @@ export class DatabaseStorage implements IStorage {
         platform: userStats.platform,
         userCount: sql<number>`COUNT(DISTINCT "user_id")`,
         bottleCount: sql<number>`SUM(${userStats.bottlesSent})`,
-        replyCount: sql<number>`SUM(${userStats.repliesSent})`
+        replyCount: sql<number>`SUM(${userStats.repliesSent})`,
+        mau: sql<number>`COUNT(DISTINCT CASE 
+          WHEN ${userStats.lastActivity} > NOW() - INTERVAL '30 days' 
+          THEN "user_id" 
+          END)`
       })
       .from(userStats)
       .groupBy(userStats.platform);

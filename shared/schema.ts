@@ -93,6 +93,7 @@ export interface PlatformStats {
   userCount: number;
   bottleCount: number;
   replyCount: number;
+  mau: number; // 追加：月間アクティブユーザー数
 }
 
 export interface DailyStats {

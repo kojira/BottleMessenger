@@ -148,9 +148,13 @@ export default function Dashboard() {
               {globalStats?.platformStats.map(stat => (
                 <div key={stat.platform} className="space-y-2">
                   <h3 className="font-medium">{stat.platform}</h3>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Users</p>
+                      <p className="text-sm text-muted-foreground">Monthly Active</p>
+                      <p className="text-lg font-medium">{stat.mau}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Users</p>
                       <p className="text-lg font-medium">{stat.userCount}</p>
                     </div>
                     <div>
