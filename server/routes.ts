@@ -77,22 +77,25 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Platform and content are required" });
       }
 
+      const settings = await storage.getSettings();
+      if (!settings) {
+        return res.status(400).json({ error: "Bot settings not configured" });
+      }
+
       if (platform === "bluesky") {
-        const settings = await storage.getSettings();
-        if (!settings?.blueskyHandle) {
+        if (!settings.blueskyHandle) {
           return res.status(400).json({ error: "Bluesky handle not configured" });
         }
         await messageRelay.relayMessage({
           sourcePlatform: "test",
           sourceId: "test",
-          sourceUser: settings.blueskyHandle,
+          sourceUser: settings.blueskyHandle, // 送信者のハンドルを設定
           targetPlatform: "bluesky",
           content,
           status: "pending"
         });
       } else if (platform === "nostr") {
-        const settings = await storage.getSettings();
-        if (!settings?.nostrPrivateKey) {
+        if (!settings.nostrPrivateKey) {
           return res.status(400).json({ error: "Nostr private key not configured" });
         }
 
