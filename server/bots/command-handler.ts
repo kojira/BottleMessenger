@@ -172,20 +172,28 @@ help または ヘルプ - このヘルプを表示
     await storage.createBottleReply(reply);
     await storage.incrementUserStat(platform, userId, "repliesSent");
 
-    // 返信の通知先を決定
-    // ボトルの作成者からの返信なら返信者へ、それ以外なら作成者へ
-    const targetPlatform = isOriginalSender ? replier!.senderPlatform : bottle.senderPlatform;
-    const targetUser = isOriginalSender ? replier!.senderId : bottle.senderId;
-
     try {
-      await messageRelay.relayMessage({
-        sourcePlatform: platform,
-        sourceId: userId,
-        sourceUser: targetUser,
-        targetPlatform: targetPlatform,
-        content: `ボトルメール #${id} への${isOriginalSender ? '返信に対する返信' : '返信'}がありました:\n\n${content}\n\nfrom ${platform}`,
-        status: "pending"
-      });
+      if (isOriginalSender && replier) {
+        // ボトルの作成者からの返信の場合、返信者に通知
+        await messageRelay.relayMessage({
+          sourcePlatform: platform,
+          sourceId: userId,
+          sourceUser: replier.senderId,
+          targetPlatform: replier.senderPlatform,
+          content: `ボトルメール #${id} への返信に対する返信がありました:\n\n${content}\n\nfrom ${platform}`,
+          status: "pending"
+        });
+      } else {
+        // 返信者からの返信の場合、ボトルの作成者に通知
+        await messageRelay.relayMessage({
+          sourcePlatform: platform,
+          sourceId: userId,
+          sourceUser: bottle.senderId,
+          targetPlatform: bottle.senderPlatform,
+          content: `ボトルメール #${id} への返信がありました:\n\n${content}\n\nfrom ${platform}`,
+          status: "pending"
+        });
+      }
       console.log('Notification sent');
     } catch (error) {
       console.error('Failed to notify:', error);

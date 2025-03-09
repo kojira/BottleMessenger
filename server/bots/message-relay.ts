@@ -23,24 +23,28 @@ export class MessageRelay {
       // Start watching for DMs
       if (this.blueskyBot) {
         console.log('Starting Bluesky DM watch...');
-        this.blueskyBot.watchDMs().catch(error => {
+        try {
+          await this.blueskyBot.watchDMs();
+        } catch (error) {
           console.error('Error in Bluesky DM watch:', error);
-          throw error;
-        });
+          // エラーをスローせず、ログに記録するだけ
+        }
       }
 
       if (this.nostrBot) {
         console.log('Starting Nostr DM watch...');
-        this.nostrBot.watchDMs().catch(error => {
+        try {
+          await this.nostrBot.watchDMs();
+        } catch (error) {
           console.error('Error in Nostr DM watch:', error);
-          throw error;
-        });
+          // エラーをスローせず、ログに記録するだけ
+        }
       }
 
       console.log('Message relay initialization completed');
     } catch (error) {
       console.error('Failed to initialize message relay:', error);
-      throw error;
+      // エラーをスローせず、ログに記録するだけ
     }
   }
 

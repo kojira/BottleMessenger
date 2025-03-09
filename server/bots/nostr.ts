@@ -21,6 +21,8 @@ interface NostrEvent {
 }
 
 export class NostrBot {
+  private agent: AtpAgent; // Added from edited code
+  private chatAgent: any; // Added from edited code
   private credentials: NostrCredentials;
   private pool: SimplePool;
   private relayUrls: string[];
@@ -46,26 +48,29 @@ export class NostrBot {
 
     // 既存の接続を閉じて再接続
     if (this.isWatching) {
-      this.cleanup();
+      this.cleanup().catch(error => {
+        console.error('Error during cleanup:', error);
+      });
       this.watchDMs().catch(error => {
         console.error('Failed to restart Nostr bot after relay update:', error);
       });
     }
   }
 
-  private async reconnect() {
+  private async reconnect(): Promise<void> {
     if (this.retryCount >= this.MAX_RETRIES) {
       console.error('Max retry attempts reached. Stopping reconnection attempts.');
       return;
     }
 
-    this.retryCount++;
-    console.log(`Attempting to reconnect (attempt ${this.retryCount}/${this.MAX_RETRIES})...`);
-
     try {
+      this.retryCount++;
+      console.log(`Attempting to reconnect (attempt ${this.retryCount}/${this.MAX_RETRIES})...`);
+
       await this.cleanup();
       this.pool = new SimplePool();
       await this.watchDMs();
+
       this.retryCount = 0; // 成功したらリトライカウントをリセット
       console.log('Successfully reconnected to relays');
     } catch (error) {
@@ -75,23 +80,33 @@ export class NostrBot {
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
       }
-      this.reconnectTimer = setTimeout(() => {
-        this.reconnect();
-      }, this.RECONNECT_DELAY);
+
+      // 非同期関数を正しく処理するようにPromiseを使用
+      return new Promise<void>((resolve) => {
+        this.reconnectTimer = setTimeout(async () => {
+          try {
+            await this.reconnect();
+            resolve();
+          } catch (err) {
+            console.error('Error during reconnect:', err);
+            resolve(); // エラーが発生しても解決する
+          }
+        }, this.RECONNECT_DELAY);
+      });
     }
   }
 
-  async sendDM(recipient: string, content: string): Promise<string | null> {
+  async sendDM(recipientDid: string, content: string): Promise<string | null> {
     try {
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
-      console.log(`Sending DM from ${pubkey} to ${recipient}`);
+      console.log(`Sending DM from ${pubkey} to ${recipientDid}`);
       console.log('DM content:', content);
 
       const encryptedContent = await nip04.encrypt(
         privateKey,
-        recipient,
+        recipientDid,
         content
       );
 
@@ -99,7 +114,7 @@ export class NostrBot {
         kind: 4,
         pubkey,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [['p', recipient]],
+        tags: [['p', recipientDid]],
         content: encryptedContent
       };
 
@@ -114,8 +129,7 @@ export class NostrBot {
         return event.id;
       } catch (error) {
         console.error('Failed to publish DM:', error);
-        // 送信エラー時に再接続を試みる
-        this.reconnect();
+        await this.reconnect();
         return null;
       }
     } catch (error) {
@@ -148,8 +162,7 @@ export class NostrBot {
         return event.id;
       } catch (error) {
         console.error('Failed to publish event:', error);
-        // 投稿エラー時に再接続を試みる
-        this.reconnect();
+        await this.reconnect();
         return null;
       }
     } catch (error) {
@@ -262,9 +275,11 @@ export class NostrBot {
         console.log('End of stored events');
       });
 
-      sub.on('error', (error: Error) => {
+      sub.on('error', (error: any) => {
         console.error('Subscription error:', error);
-        this.reconnect();
+        this.reconnect().catch(err => {
+          console.error('Error during reconnect:', err);
+        });
       });
 
       this.activeSubscriptions.push(sub);
@@ -274,8 +289,9 @@ export class NostrBot {
       console.error('Failed to watch Nostr DMs:', error);
       this.isWatching = false;
       // 初期化エラー時も再接続を試みる
-      this.reconnect();
-      throw error;
+      this.reconnect().catch(err => {
+        console.error('Error during reconnect:', err);
+      });
     }
   }
 
