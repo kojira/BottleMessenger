@@ -5,6 +5,7 @@ import { messageRelay } from "./bots/message-relay";
 import { settingsSchema, insertMessageSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { getPublicKey as nostrGetPublicKey } from "nostr-tools";
+import { AtpAgent } from '@atproto/api';
 
 export async function registerRoutes(app: Express) {
   const server = createServer(app);
@@ -83,13 +84,24 @@ export async function registerRoutes(app: Express) {
       }
 
       if (platform === "bluesky") {
-        if (!settings.blueskyHandle) {
-          return res.status(400).json({ error: "Bluesky handle not configured" });
+        if (!settings.blueskyHandle || !settings.blueskyPassword) {
+          return res.status(400).json({ error: "Bluesky handle and password are required" });
         }
+
+        // Blueskyボットを初期化して送信者のDIDを取得
+        const agent = new AtpAgent({ service: 'https://bsky.social' });
+        await agent.login({
+          identifier: settings.blueskyHandle,
+          password: settings.blueskyPassword
+        });
+
+        const profile = await agent.getProfile({ actor: settings.blueskyHandle });
+        const senderDid = profile.data.did;
+
         await messageRelay.relayMessage({
           sourcePlatform: "test",
           sourceId: "test",
-          sourceUser: settings.blueskyHandle, // 送信者のハンドルを設定
+          sourceUser: senderDid,  // DIDを使用
           targetPlatform: "bluesky",
           content,
           status: "pending"

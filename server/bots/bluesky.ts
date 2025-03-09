@@ -49,18 +49,10 @@ export class BlueskyBot {
     }
   }
 
-  async sendDM(recipientHandle: string, content: string): Promise<string | null> {
+  async sendDM(recipientDid: string, content: string): Promise<string | null> {
     try {
       await this.ensureSession();
-      console.log(`Sending DM to ${recipientHandle}: ${content}`);
-
-      // 受信者のプロフィールを取得してDIDを取得
-      const profileResponse = await this.agent.getProfile({ actor: recipientHandle });
-      if (!profileResponse.success) {
-        throw new Error('Failed to get recipient profile');
-      }
-      const recipientDid = profileResponse.data.did;
-      console.log('Recipient DID:', recipientDid);
+      console.log(`Sending DM to ${recipientDid}: ${content}`);
 
       // 会話を取得または作成
       const convoResponse = await this.chatAgent.chat.bsky.convo.getConvoForMembers({ 
@@ -113,13 +105,13 @@ export class BlueskyBot {
             });
 
             // 送信者情報の存在確認
-            if (!message.sender?.handle) {
+            if (!message.sender?.did) {
               console.log('Skipping message with invalid sender');
               continue;
             }
 
             if (message.text.startsWith('/')) {
-              console.log('Processing command from:', message.sender.handle);
+              console.log('Processing command from sender DID:', message.sender.did);
               const response = await commandHandler.handleCommand(
                 'bluesky',
                 message.sender.did,
@@ -128,7 +120,7 @@ export class BlueskyBot {
 
               if (response.content) {
                 console.log('Sending response:', response.content);
-                await this.sendDM(message.sender.handle, response.content);
+                await this.sendDM(message.sender.did, response.content);
               }
             }
           }
