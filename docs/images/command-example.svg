@@ -5,7 +5,7 @@
   
   <!-- ヘッダー -->
   <rect width="400" height="40" fill="#f7f7f7" rx="8 8 0 0"/>
-  <text x="20" y="27" font-family="Arial" font-size="14" font-weight="bold">ぼとるめーる (@bskychan.bsky.social)</text>
+  <text x="20" y="27" font-family="Arial" font-size="14" font-weight="bold">Blueskyちゃん (@bskychan.bsky.social)</text>
   
   <!-- ユーザーのメッセージ -->
   <rect x="200" y="60" width="180" height="60" fill="#0085ff" rx="8"/>
