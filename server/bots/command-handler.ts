@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { type InsertBottle, type InsertBottleReply, type InsertUserStats, bottleStatusSchema } from "@shared/schema";
+import { messageRelay } from './message-relay';
 
 interface CommandResponse {
   content: string;
@@ -124,6 +125,26 @@ export class CommandHandler {
 
     await storage.createBottleReply(reply);
     await storage.incrementUserStat(platform, userId, "repliesSent");
+
+    // 元の送信者に返信があったことを通知
+    console.log('Notifying original sender:', {
+      platform: bottle.senderPlatform,
+      userId: bottle.senderId
+    });
+
+    try {
+      await messageRelay.relayMessage({
+        sourcePlatform: platform,
+        sourceId: userId,
+        sourceUser: userId,
+        targetPlatform: bottle.senderPlatform,
+        content: `あなたのボトルメール #${id} に返信がありました:\n\n${content}`,
+        status: "pending"
+      });
+      console.log('Notification sent to original sender');
+    } catch (error) {
+      console.error('Failed to notify original sender:', error);
+    }
 
     console.log(`Reply created for bottle #${id}`);
     return { content: "返信を送信しました！" };
