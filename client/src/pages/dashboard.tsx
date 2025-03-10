@@ -74,11 +74,6 @@ export default function Dashboard() {
       // レスポンスデータを確認
       console.log('Export data:', response);
 
-      // データが空でないことを確認
-      if (!response || Object.values(response).every(arr => !arr?.length)) {
-        throw new Error("エクスポートするデータがありません");
-      }
-
       // ダウンロードファイルを作成
       const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);

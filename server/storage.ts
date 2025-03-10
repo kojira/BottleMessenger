@@ -438,7 +438,8 @@ export class DatabaseStorage implements IStorage {
       };
 
       if (Object.values(exportData).every(arr => !arr?.length)) {
-        console.log('Warning: All exported data arrays are empty');
+        console.warn('Warning: All exported data arrays are empty');
+        throw new Error("データベースにエクスポートできるデータが見つかりませんでした。");
       }
 
       return exportData;
