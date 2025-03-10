@@ -404,25 +404,48 @@ export class DatabaseStorage implements IStorage {
   }
 
   async exportData() {
-    const results = await Promise.all([
-      db.select().from(botSettings),
-      db.select().from(bottles),
-      db.select().from(bottleReplies),
-      db.select().from(userStats),
-      db.select().from(messages),
-      db.select().from(botState),
-      db.select().from(botResponses)
-    ]);
+    try {
+      console.log('Starting data export...');
 
-    return {
-      settings: results[0],
-      bottles: results[1],
-      bottleReplies: results[2],
-      userStats: results[3],
-      messages: results[4],
-      botState: results[5],
-      botResponses: results[6]
-    };
+      const results = await Promise.all([
+        db.select().from(botSettings),
+        db.select().from(bottles),
+        db.select().from(bottleReplies),
+        db.select().from(userStats),
+        db.select().from(messages),
+        db.select().from(botState),
+        db.select().from(botResponses)
+      ]);
+
+      console.log('Export results:', {
+        settings: results[0].length,
+        bottles: results[1].length,
+        bottleReplies: results[2].length,
+        userStats: results[3].length,
+        messages: results[4].length,
+        botState: results[5].length,
+        botResponses: results[6].length
+      });
+
+      const exportData = {
+        settings: results[0],
+        bottles: results[1],
+        bottleReplies: results[2],
+        userStats: results[3],
+        messages: results[4],
+        botState: results[5],
+        botResponses: results[6]
+      };
+
+      if (Object.values(exportData).every(arr => !arr?.length)) {
+        console.log('Warning: All exported data arrays are empty');
+      }
+
+      return exportData;
+    } catch (error) {
+      console.error('Error in exportData:', error);
+      throw error;
+    }
   }
 
   async importData(data: {

@@ -187,7 +187,12 @@ export async function registerRoutes(app: Express) {
   // データのエクスポート
   app.get("/api/data/export", async (_req, res) => {
     try {
+      console.log('Starting data export request...');
       const data = await storage.exportData();
+      console.log('Export completed', {
+        dataKeys: Object.keys(data),
+        hasData: Object.values(data).some(arr => arr?.length > 0)
+      });
       res.json(data);
     } catch (error) {
       console.error('Error exporting data:', error);
