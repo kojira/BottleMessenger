@@ -71,16 +71,17 @@ export default function Dashboard() {
   const exportData = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("GET", "/api/data/export");
+      const data = await response.json();
       // レスポンスデータを確認
-      console.log('Export data:', response);
-      console.log('Response type:', typeof response);
-      console.log('Has data:', Object.values(response).some(arr => arr?.length > 0));
-      console.log('Data keys:', Object.keys(response));
-      console.log('Settings length:', response.settings?.length);
-      console.log('Bottles length:', response.bottles?.length);
+      console.log('Export data:', data);
+      console.log('Response type:', typeof data);
+      console.log('Has data:', Object.values(data).some(arr => arr?.length > 0));
+      console.log('Data keys:', Object.keys(data));
+      console.log('Settings length:', data.settings?.length);
+      console.log('Bottles length:', data.bottles?.length);
 
       // ダウンロードファイルを作成
-      const jsonData = JSON.stringify(response, null, 2);
+      const jsonData = JSON.stringify(data, null, 2);
       console.log('JSON data length:', jsonData.length);
       console.log('First 200 chars of JSON:', jsonData.substring(0, 200));
 
