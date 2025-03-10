@@ -184,5 +184,27 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // データのエクスポート
+  app.get("/api/data/export", async (_req, res) => {
+    try {
+      const data = await storage.exportData();
+      res.json(data);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      res.status(500).json({ error: "Failed to export data" });
+    }
+  });
+
+  // データのインポート
+  app.post("/api/data/import", async (req, res) => {
+    try {
+      await storage.importData(req.body);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error importing data:', error);
+      res.status(500).json({ error: "Failed to import data" });
+    }
+  });
+
   return server;
 }

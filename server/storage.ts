@@ -3,10 +3,9 @@ import { Bottle, BottleReply, UserStats } from "@shared/schema";
 import { InsertBottle, InsertBottleReply, InsertUserStats } from "@shared/schema";
 import { db } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { bottles, bottleReplies, userStats, botSettings, messages } from "@shared/schema";
+import { bottles, bottleReplies, userStats, botSettings, messages, botResponses } from "@shared/schema";
 import { botState, type BotState, type InsertBotState } from "@shared/schema";
-import { type BotResponse, type InsertBotResponse } from "@shared/schema"; // Assuming this import is needed
-
+import { type BotResponse, type InsertBotResponse } from "@shared/schema";
 
 export interface IStorage {
   // Settings operations
@@ -54,6 +53,27 @@ export interface IStorage {
   getBotResponses(): Promise<BotResponse[]>;
   createBotResponse(response: InsertBotResponse): Promise<BotResponse>;
   deleteBotResponse(id: number): Promise<void>;
+
+  // Add new methods for import/export
+  exportData(): Promise<{
+    settings: Settings[];
+    bottles: Bottle[];
+    bottleReplies: BottleReply[];
+    userStats: UserStats[];
+    messages: Message[];
+    botState: BotState[];
+    botResponses: BotResponse[];
+  }>;
+
+  importData(data: {
+    settings?: Settings[];
+    bottles?: Bottle[];
+    bottleReplies?: BottleReply[];
+    userStats?: UserStats[];
+    messages?: Message[];
+    botState?: BotState[];
+    botResponses?: BotResponse[];
+  }): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -381,6 +401,77 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(botResponses)
       .where(eq(botResponses.id, id));
+  }
+
+  async exportData() {
+    const [settings, bottles, bottleReplies, userStats, messages, botState, botResponses] = await Promise.all([
+      db.select().from(botSettings),
+      db.select().from(bottles),
+      db.select().from(bottleReplies),
+      db.select().from(userStats),
+      db.select().from(messages),
+      db.select().from(botState),
+      db.select().from(botResponses)
+    ]);
+
+    return {
+      settings,
+      bottles,
+      bottleReplies,
+      userStats,
+      messages,
+      botState,
+      botResponses
+    };
+  }
+
+  async importData(data: {
+    settings?: Settings[];
+    bottles?: Bottle[];
+    bottleReplies?: BottleReply[];
+    userStats?: UserStats[];
+    messages?: Message[];
+    botState?: BotState[];
+    botResponses?: BotResponse[];
+  }) {
+    const transaction = async () => {
+      if (data.settings?.length) {
+        await db.insert(botSettings).values(data.settings)
+          .onConflictDoUpdate({ target: botSettings.id, set: {} });
+      }
+
+      if (data.bottles?.length) {
+        await db.insert(bottles).values(data.bottles)
+          .onConflictDoUpdate({ target: bottles.id, set: {} });
+      }
+
+      if (data.bottleReplies?.length) {
+        await db.insert(bottleReplies).values(data.bottleReplies)
+          .onConflictDoUpdate({ target: bottleReplies.id, set: {} });
+      }
+
+      if (data.userStats?.length) {
+        await db.insert(userStats).values(data.userStats)
+          .onConflictDoUpdate({ target: [userStats.platform, userStats.userId], set: {} });
+      }
+
+      if (data.messages?.length) {
+        await db.insert(messages).values(data.messages)
+          .onConflictDoUpdate({ target: messages.id, set: {} });
+      }
+
+      if (data.botState?.length) {
+        await db.insert(botState).values(data.botState)
+          .onConflictDoUpdate({ target: botState.platform, set: {} });
+      }
+
+      if (data.botResponses?.length) {
+        await db.insert(botResponses).values(data.botResponses)
+          .onConflictDoUpdate({ target: botResponses.id, set: {} });
+      }
+    };
+
+    await transaction();
   }
 }
 

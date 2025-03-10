@@ -11,7 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Settings, type Message, type GlobalStats } from "@shared/schema";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Download, Upload } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -67,6 +67,57 @@ export default function Dashboard() {
       });
     },
   });
+
+  const exportData = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/data/export");
+      // ダウンロードファイルを作成
+      const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bottlemail-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "データのエクスポートに失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const importData = useMutation({
+    mutationFn: async (file: File) => {
+      const data = await file.text();
+      await apiRequest("POST", "/api/data/import", JSON.parse(data));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({
+        title: "Success",
+        description: "データのインポートが完了しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "データのインポートに失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      importData.mutate(file);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -216,7 +267,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Recent Messages</CardTitle>
             <Button
@@ -248,6 +299,43 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Import/Export buttons */}
+      <Card>
+        <CardHeader>
+          <CardTitle>データ管理</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <Button
+              variant="outline"
+              onClick={() => exportData.mutate()}
+              disabled={exportData.isPending}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              エクスポート
+            </Button>
+            <div className="relative">
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="import-file"
+                disabled={importData.isPending}
+              />
+              <Button
+                variant="outline"
+                onClick={() => document.getElementById('import-file')?.click()}
+                disabled={importData.isPending}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                インポート
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
