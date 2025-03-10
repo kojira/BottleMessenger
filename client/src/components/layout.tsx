@@ -10,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: "Dashboard", href: "/" },
     { name: "Settings", href: "/settings" },
     { name: "Messages", href: "/messages" },
+    { name: "Bot Responses", href: "/responses" },  // 追加
   ];
 
   return (
