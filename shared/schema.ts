@@ -60,6 +60,15 @@ export const botState = pgTable("bot_state", {
   lastProcessedAt: timestamp("last_processed_at").notNull(),
 });
 
+export const botResponses = pgTable("bot_responses", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  responseType: text("response_type").notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const settingsSchema = createInsertSchema(botSettings).omit({ id: true });
 export const insertBottleSchema = createInsertSchema(bottles).omit({ id: true, createdAt: true });
@@ -67,6 +76,11 @@ export const insertReplySchema = createInsertSchema(bottleReplies).omit({ id: tr
 export const insertUserStatsSchema = createInsertSchema(userStats).omit({ id: true, lastActivity: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
 export const botStateSchema = createInsertSchema(botState).omit({ id: true });
+export const insertBotResponseSchema = createInsertSchema(botResponses).omit({ 
+  id: true, 
+  createdAt: true,
+  updatedAt: true
+});
 
 // Types
 export type Settings = typeof botSettings.$inferSelect;
@@ -75,6 +89,9 @@ export type BottleReply = typeof bottleReplies.$inferSelect;
 export type UserStats = typeof userStats.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type BotState = typeof botState.$inferSelect;
+export type BotResponse = typeof botResponses.$inferSelect;
+export type InsertBotResponse = z.infer<typeof insertBotResponseSchema>;
+
 
 // Validation schemas
 export type InsertSettings = z.infer<typeof settingsSchema>;
@@ -87,6 +104,15 @@ export type InsertBotState = z.infer<typeof botStateSchema>;
 export const platformSchema = z.enum(["bluesky", "nostr"]);
 export const statusSchema = z.enum(["pending", "sent", "failed"]);
 export const bottleStatusSchema = z.enum(["active", "archived"]);
+export const responseTypeSchema = z.enum([
+  "welcome",
+  "help",
+  "bottle_sent",
+  "bottle_received",
+  "reply_sent",
+  "error",
+  "stats"
+]);
 
 // 既存のエクスポートの後に追加
 export interface PlatformStats {
