@@ -404,7 +404,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async exportData() {
-    const [settings, bottles, bottleReplies, userStats, messages, botState, botResponses] = await Promise.all([
+    const results = await Promise.all([
       db.select().from(botSettings),
       db.select().from(bottles),
       db.select().from(bottleReplies),
@@ -415,13 +415,13 @@ export class DatabaseStorage implements IStorage {
     ]);
 
     return {
-      settings,
-      bottles,
-      bottleReplies,
-      userStats,
-      messages,
-      botState,
-      botResponses
+      settings: results[0],
+      bottles: results[1],
+      bottleReplies: results[2],
+      userStats: results[3],
+      messages: results[4],
+      botState: results[5],
+      botResponses: results[6]
     };
   }
 
