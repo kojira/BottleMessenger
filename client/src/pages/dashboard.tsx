@@ -73,9 +73,20 @@ export default function Dashboard() {
       const response = await apiRequest("GET", "/api/data/export");
       // レスポンスデータを確認
       console.log('Export data:', response);
+      console.log('Response type:', typeof response);
+      console.log('Has data:', Object.values(response).some(arr => arr?.length > 0));
+      console.log('Data keys:', Object.keys(response));
+      console.log('Settings length:', response.settings?.length);
+      console.log('Bottles length:', response.bottles?.length);
 
       // ダウンロードファイルを作成
-      const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+      const jsonData = JSON.stringify(response, null, 2);
+      console.log('JSON data length:', jsonData.length);
+      console.log('First 200 chars of JSON:', jsonData.substring(0, 200));
+
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      console.log('Blob size:', blob.size);
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

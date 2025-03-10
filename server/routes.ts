@@ -191,7 +191,9 @@ export async function registerRoutes(app: Express) {
       const data = await storage.exportData();
       console.log('Export completed', {
         dataKeys: Object.keys(data),
-        hasData: Object.values(data).some(arr => arr?.length > 0)
+        hasData: Object.values(data).some(arr => arr?.length > 0),
+        dataSize: JSON.stringify(data).length,
+        sample: JSON.stringify(data).substring(0, 100) + '...'
       });
       res.json(data);
     } catch (error) {
