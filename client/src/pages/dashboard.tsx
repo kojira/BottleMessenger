@@ -71,6 +71,14 @@ export default function Dashboard() {
   const exportData = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("GET", "/api/data/export");
+      // レスポンスデータを確認
+      console.log('Export data:', response);
+
+      // データが空でないことを確認
+      if (!response || Object.values(response).every(arr => !arr?.length)) {
+        throw new Error("エクスポートするデータがありません");
+      }
+
       // ダウンロードファイルを作成
       const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
@@ -82,10 +90,16 @@ export default function Dashboard() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "データのエクスポートが完了しました",
+      });
+    },
     onError: (error) => {
       toast({
         title: "Error",
-        description: "データのエクスポートに失敗しました",
+        description: error instanceof Error ? error.message : "データのエクスポートに失敗しました",
         variant: "destructive",
       });
     },
