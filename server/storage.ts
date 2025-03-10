@@ -5,6 +5,8 @@ import { db } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { bottles, bottleReplies, userStats, botSettings, messages } from "@shared/schema";
 import { botState, type BotState, type InsertBotState } from "@shared/schema";
+import { type BotResponse, type InsertBotResponse } from "@shared/schema"; // Assuming this import is needed
+
 
 export interface IStorage {
   // Settings operations
@@ -47,6 +49,11 @@ export interface IStorage {
     dailyStats: { date: string; bottleCount: number }[];
     dailyReplies: { date: string; replyCount: number }[];
   }>;
+
+  // Bot response operations
+  getBotResponses(): Promise<BotResponse[]>;
+  createBotResponse(response: InsertBotResponse): Promise<BotResponse>;
+  deleteBotResponse(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -351,6 +358,29 @@ export class DatabaseStorage implements IStorage {
       dailyStats,
       dailyReplies
     };
+  }
+
+
+  // Bot応答メッセージの操作を追加
+  async getBotResponses(): Promise<BotResponse[]> {
+    return await db
+      .select()
+      .from(botResponses)
+      .orderBy(botResponses.platform, botResponses.responseType);
+  }
+
+  async createBotResponse(response: InsertBotResponse): Promise<BotResponse> {
+    const [created] = await db
+      .insert(botResponses)
+      .values(response)
+      .returning();
+    return created;
+  }
+
+  async deleteBotResponse(id: number): Promise<void> {
+    await db
+      .delete(botResponses)
+      .where(eq(botResponses.id, id));
   }
 }
 

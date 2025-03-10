@@ -22,6 +22,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -186,9 +187,14 @@ export default function Dashboard() {
                   <p className="font-medium">Bluesky Bot</p>
                   <p className="text-sm text-muted-foreground">{settings?.blueskyHandle}</p>
                 </div>
-                <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
-                  {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
+                    {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                  </span>
+                  <Link href="/responses" className="text-sm text-blue-500 hover:underline">
+                    応答設定
+                  </Link>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -197,9 +203,14 @@ export default function Dashboard() {
                     {settings?.nostrPrivateKey ? '設定済み' : '未設定'}
                   </p>
                 </div>
-                <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
-                  {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
+                    {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                  </span>
+                  <Link href="/responses" className="text-sm text-blue-500 hover:underline">
+                    応答設定
+                  </Link>
+                </div>
               </div>
             </div>
           </CardContent>

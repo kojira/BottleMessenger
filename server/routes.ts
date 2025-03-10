@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { messageRelay } from "./bots/message-relay";
-import { settingsSchema, insertMessageSchema } from "@shared/schema";
+import { settingsSchema, insertMessageSchema, insertBotResponseSchema } from "@shared/schema"; // Added import
 import { ZodError } from "zod";
 import { getPublicKey as nostrGetPublicKey } from "nostr-tools";
 import { AtpAgent } from '@atproto/api';
@@ -142,6 +142,45 @@ export async function registerRoutes(app: Express) {
     } catch (error) {
       console.error('Error getting global stats:', error);
       res.status(500).json({ error: "Failed to get global stats" });
+    }
+  });
+
+
+  // ボット応答メッセージのルートを追加
+  app.get("/api/responses", async (_req, res) => {
+    try {
+      const responses = await storage.getBotResponses();
+      res.json(responses);
+    } catch (error) {
+      console.error('Error getting bot responses:', error);
+      res.status(500).json({ error: "Failed to get bot responses" });
+    }
+  });
+
+  app.post("/api/responses", async (req, res) => {
+    try {
+      const data = insertBotResponseSchema.parse(req.body);
+      const response = await storage.createBotResponse(data);
+      res.status(201).json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to create bot response" });
+      }
+    }
+  });
+
+  app.delete("/api/responses/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+      await storage.deleteBotResponse(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete bot response" });
     }
   });
 
