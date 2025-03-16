@@ -61,6 +61,10 @@ EOL
   echo "データベースマイグレーションを実行中..."
   npx tsx server/migrate.ts
   
+  # Apply default bot responses
+  echo "デフォルトのBot応答メッセージを適用中..."
+  npx tsx server/apply-default-responses.ts
+  
   # 開発サーバーを起動
   echo "開発サーバーを起動中..."
   exec npm run dev
@@ -68,6 +72,10 @@ else
   # Run custom migration script instead of drizzle-kit
   echo "データベースマイグレーションを実行中..."
   node dist/migrate.js
+  
+  # Apply default bot responses
+  echo "デフォルトのBot応答メッセージを適用中..."
+  node dist/apply-default-responses.js
 
   # Start the application
   echo "アプリケーションを起動中..."

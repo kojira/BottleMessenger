@@ -108,13 +108,23 @@ export const platformSchema = z.enum(["bluesky", "nostr"]);
 export const statusSchema = z.enum(["pending", "sent", "failed"]);
 export const bottleStatusSchema = z.enum(["active", "archived"]);
 export const responseTypeSchema = z.enum([
-  "welcome",
   "help",
   "bottle_sent",
   "bottle_received",
   "reply_sent",
+  "reply_notification",
   "error",
-  "stats"
+  "error_invalid_command",
+  "error_empty_message",
+  "error_no_bottles",
+  "error_missing_id_content",
+  "error_invalid_id",
+  "error_bottle_not_found",
+  "error_no_reply_permission",
+  "error_no_bottles_sent",
+  "error_no_stats",
+  "stats",
+  "list"
 ]);
 
 // 既存のエクスポートの後に追加

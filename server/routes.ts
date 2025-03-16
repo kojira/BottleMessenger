@@ -206,6 +206,24 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  app.put("/api/responses/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+      const data = insertBotResponseSchema.parse(req.body);
+      const response = await storage.updateBotResponse(id, data);
+      res.json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to update bot response" });
+      }
+    }
+  });
+
   app.delete("/api/responses/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);

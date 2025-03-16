@@ -53,6 +53,7 @@ export interface IStorage {
   // Bot response operations
   getBotResponses(): Promise<BotResponse[]>;
   createBotResponse(response: InsertBotResponse): Promise<BotResponse>;
+  updateBotResponse(id: number, response: InsertBotResponse): Promise<BotResponse>;
   deleteBotResponse(id: number): Promise<void>;
 
   // Add new methods for import/export
@@ -462,9 +463,36 @@ export class DatabaseStorage implements IStorage {
   async createBotResponse(response: InsertBotResponse): Promise<BotResponse> {
     const [created] = await db
       .insert(botResponses)
-      .values(response)
+      .values({
+        ...response,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
       .returning();
     return created;
+  }
+
+  async updateBotResponse(id: number, response: InsertBotResponse): Promise<BotResponse> {
+    console.log("Updating bot response:", { id, response });
+    
+    try {
+      const [updated] = await db
+        .update(botResponses)
+        .set({
+          platform: response.platform,
+          responseType: response.responseType,
+          message: response.message,
+          updatedAt: new Date()
+        })
+        .where(eq(botResponses.id, id))
+        .returning();
+      
+      console.log("Updated bot response:", updated);
+      return updated;
+    } catch (error) {
+      console.error("Error updating bot response:", error);
+      throw error;
+    }
   }
 
   async deleteBotResponse(id: number): Promise<void> {
