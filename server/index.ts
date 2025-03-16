@@ -73,7 +73,7 @@ app.get("/api/test", (_req, res) => {
     const port = 5000;
     server.listen({
       port,
-      host: "localhost",
+      host: "0.0.0.0",
     }, () => {
       log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
       log(`Serving on http://localhost:${port}`);
