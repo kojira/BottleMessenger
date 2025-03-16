@@ -43,7 +43,11 @@ from {platform}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
 送信した返信: {replies}通
-最終アクティビティ: {activity}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+最終アクティビティ: {activity}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+  ('bluesky', 'auto_post', '📊 Blueskyボットの状態
+🌊 ボトル：{activeBottles}通が漂流中、{archivedBottles}通が受け取られました
+💬 返信：{totalReplies}通の返信が届いています', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- Nostrプラットフォームのデフォルト応答
 INSERT INTO bot_responses (platform, response_type, message, created_at, updated_at)
@@ -85,4 +89,8 @@ from {platform}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
 送信した返信: {replies}通
-最終アクティビティ: {activity}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+最終アクティビティ: {activity}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+  ('nostr', 'auto_post', '📊 Nostrボットの状態
+🌊 ボトル：{activeBottles}通が漂流中、{archivedBottles}通が受け取られました
+💬 返信：{totalReplies}通の返信が届いています', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

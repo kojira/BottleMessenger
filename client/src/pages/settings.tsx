@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -198,6 +205,118 @@ function SettingsPage() {
                 </FormItem>
               )}
             />
+
+            <div className="space-y-4 mt-6">
+              <h3 className="text-lg font-medium">自動投稿設定</h3>
+              
+              {/* Bluesky自動投稿設定 */}
+              <div className="border p-4 rounded-lg space-y-4">
+                <h4 className="font-medium">Bluesky</h4>
+                <FormField
+                  control={form.control}
+                  name="blueskyAutoPostEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between">
+                      <div className="space-y-0.5">
+                        <FormLabel>タイムライン自動投稿</FormLabel>
+                        <FormDescription>
+                          定期的にタイムラインに統計情報を投稿します
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value === "true"}
+                          onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="blueskyAutoPostInterval"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>投稿間隔（分）</FormLabel>
+                      <Select
+                        disabled={form.watch("blueskyAutoPostEnabled") !== "true"}
+                        value={field.value?.toString() || "10"}
+                        onValueChange={(value) => field.onChange(parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="投稿間隔を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5分</SelectItem>
+                          <SelectItem value="10">10分</SelectItem>
+                          <SelectItem value="15">15分</SelectItem>
+                          <SelectItem value="30">30分</SelectItem>
+                          <SelectItem value="60">1時間</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        自動投稿の間隔を設定します
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Nostr自動投稿設定 */}
+              <div className="border p-4 rounded-lg space-y-4">
+                <h4 className="font-medium">Nostr</h4>
+                <FormField
+                  control={form.control}
+                  name="nostrAutoPostEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between">
+                      <div className="space-y-0.5">
+                        <FormLabel>タイムライン自動投稿</FormLabel>
+                        <FormDescription>
+                          定期的にタイムラインに統計情報を投稿します
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value === "true"}
+                          onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nostrAutoPostInterval"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>投稿間隔（分）</FormLabel>
+                      <Select
+                        disabled={form.watch("nostrAutoPostEnabled") !== "true"}
+                        value={field.value?.toString() || "10"}
+                        onValueChange={(value) => field.onChange(parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="投稿間隔を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5分</SelectItem>
+                          <SelectItem value="10">10分</SelectItem>
+                          <SelectItem value="15">15分</SelectItem>
+                          <SelectItem value="30">30分</SelectItem>
+                          <SelectItem value="60">1時間</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        自動投稿の間隔を設定します
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
           </div>
 
           <Button

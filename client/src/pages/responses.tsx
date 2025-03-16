@@ -79,7 +79,10 @@ from {platform}`,
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
 送信した返信: {replies}通
-最終アクティビティ: {activity}`
+最終アクティビティ: {activity}`,
+    auto_post: `📊 Blueskyボットの状態
+🌊 ボトル：{activeBottles}通が漂流中、{archivedBottles}通が受け取られました
+💬 返信：{totalReplies}通の返信が届いています`
   },
   nostr: {
     help: `使用可能なコマンド:
@@ -120,7 +123,10 @@ from {platform}`,
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
 送信した返信: {replies}通
-最終アクティビティ: {activity}`
+最終アクティビティ: {activity}`,
+    auto_post: `📊 Nostrボットの状態
+🌊 ボトル：{activeBottles}通が漂流中、{archivedBottles}通が受け取られました
+💬 返信：{totalReplies}通の返信が届いています`
   }
 };
 
@@ -315,6 +321,7 @@ function ResponsesPage() {
                         <SelectItem value="error_no_stats">統計情報なし</SelectItem>
                         <SelectItem value="error_message_too_long">メッセージ長すぎ</SelectItem>
                         <SelectItem value="stats">統計情報</SelectItem>
+                        <SelectItem value="auto_post">自動投稿</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

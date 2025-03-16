@@ -95,14 +95,22 @@ const tables = [
 const alterQueries = [
   `ALTER TABLE bot_settings ADD COLUMN auto_start TEXT DEFAULT 'false'`,
   `ALTER TABLE bot_settings ADD COLUMN bluesky_ignore_before_time INTEGER`,
-  `ALTER TABLE bot_settings ADD COLUMN bot_status TEXT DEFAULT 'stopped'`
+  `ALTER TABLE bot_settings ADD COLUMN bot_status TEXT DEFAULT 'stopped'`,
+  `ALTER TABLE bot_settings ADD COLUMN bluesky_auto_post_enabled TEXT DEFAULT 'true'`,
+  `ALTER TABLE bot_settings ADD COLUMN bluesky_auto_post_interval INTEGER DEFAULT 10`,
+  `ALTER TABLE bot_settings ADD COLUMN nostr_auto_post_enabled TEXT DEFAULT 'true'`,
+  `ALTER TABLE bot_settings ADD COLUMN nostr_auto_post_interval INTEGER DEFAULT 10`
 ];
 
 // 既存のレコードを更新するSQLクエリ
 const updateQueries = [
   `UPDATE bot_settings SET auto_start = 'false' WHERE auto_start IS NULL`,
   `UPDATE bot_settings SET bot_status = 'stopped' WHERE bot_status IS NULL`,
-  `UPDATE bot_settings SET bluesky_ignore_before_time = NULL WHERE id = 1`
+  `UPDATE bot_settings SET bluesky_ignore_before_time = NULL WHERE id = 1`,
+  `UPDATE bot_settings SET bluesky_auto_post_enabled = 'true' WHERE bluesky_auto_post_enabled IS NULL`,
+  `UPDATE bot_settings SET bluesky_auto_post_interval = 10 WHERE bluesky_auto_post_interval IS NULL`,
+  `UPDATE bot_settings SET nostr_auto_post_enabled = 'true' WHERE nostr_auto_post_enabled IS NULL`,
+  `UPDATE bot_settings SET nostr_auto_post_interval = 10 WHERE nostr_auto_post_interval IS NULL`
 ];
 
 // 各テーブルを作成

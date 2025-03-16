@@ -110,6 +110,26 @@ export default function Dashboard() {
     queryKey: ["/api/messages", { limit: 5, includeBottles: true }]
   });
 
+  const updateSettings = useMutation({
+    mutationFn: async (data: any) => {
+      await apiRequest("POST", "/api/settings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Success",
+        description: "設定を更新しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Log messages for debugging
   React.useEffect(() => {
     if (messages) {
@@ -392,6 +412,124 @@ export default function Dashboard() {
                 <div className="flex gap-2">
                   <StartBotButton settings={settings} />
                   <StopBotButton />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 自動投稿設定 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>自動投稿設定</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Bluesky自動投稿設定 */}
+              <div className="space-y-2">
+                <h3 className="font-medium">Bluesky</h3>
+                <div className="flex items-center justify-between border p-3 rounded-md">
+                  <div>
+                    <p className="font-medium">タイムライン自動投稿</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings?.blueskyAutoPostEnabled === 'true' ? '有効' : '無効'}
+                      {settings?.blueskyAutoPostEnabled === 'true' && 
+                        ` / ${settings?.blueskyAutoPostInterval || 10}分ごと`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">間隔:</span>
+                      <select
+                        className="border rounded p-1 text-sm"
+                        value={settings?.blueskyAutoPostInterval || 10}
+                        onChange={async (e) => {
+                          const interval = parseInt(e.target.value);
+                          if (settings) {
+                            await updateSettings.mutate({
+                              ...settings,
+                              blueskyAutoPostInterval: interval
+                            });
+                          }
+                        }}
+                        disabled={settings?.blueskyAutoPostEnabled !== 'true'}
+                      >
+                        <option value="5">5分</option>
+                        <option value="10">10分</option>
+                        <option value="15">15分</option>
+                        <option value="30">30分</option>
+                        <option value="60">1時間</option>
+                      </select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (settings) {
+                          await updateSettings.mutate({
+                            ...settings,
+                            blueskyAutoPostEnabled: settings.blueskyAutoPostEnabled === 'true' ? 'false' : 'true'
+                          });
+                        }
+                      }}
+                    >
+                      {settings?.blueskyAutoPostEnabled === 'true' ? '無効にする' : '有効にする'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nostr自動投稿設定 */}
+              <div className="space-y-2">
+                <h3 className="font-medium">Nostr</h3>
+                <div className="flex items-center justify-between border p-3 rounded-md">
+                  <div>
+                    <p className="font-medium">タイムライン自動投稿</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings?.nostrAutoPostEnabled === 'true' ? '有効' : '無効'}
+                      {settings?.nostrAutoPostEnabled === 'true' && 
+                        ` / ${settings?.nostrAutoPostInterval || 10}分ごと`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">間隔:</span>
+                      <select
+                        className="border rounded p-1 text-sm"
+                        value={settings?.nostrAutoPostInterval || 10}
+                        onChange={async (e) => {
+                          const interval = parseInt(e.target.value);
+                          if (settings) {
+                            await updateSettings.mutate({
+                              ...settings,
+                              nostrAutoPostInterval: interval
+                            });
+                          }
+                        }}
+                        disabled={settings?.nostrAutoPostEnabled !== 'true'}
+                      >
+                        <option value="5">5分</option>
+                        <option value="10">10分</option>
+                        <option value="15">15分</option>
+                        <option value="30">30分</option>
+                        <option value="60">1時間</option>
+                      </select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (settings) {
+                          await updateSettings.mutate({
+                            ...settings,
+                            nostrAutoPostEnabled: settings.nostrAutoPostEnabled === 'true' ? 'false' : 'true'
+                          });
+                        }
+                      }}
+                    >
+                      {settings?.nostrAutoPostEnabled === 'true' ? '無効にする' : '有効にする'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

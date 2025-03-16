@@ -12,6 +12,11 @@ export const botSettings = sqliteTable("bot_settings", {
   autoStart: text("auto_start").notNull().default("false"),
   blueskyIgnoreBeforeTime: integer("bluesky_ignore_before_time"),
   botStatus: text("bot_status").notNull().default("stopped"),
+  // プラットフォーム別の自動投稿設定
+  blueskyAutoPostEnabled: text("bluesky_auto_post_enabled").notNull().default("true"),
+  blueskyAutoPostInterval: integer("bluesky_auto_post_interval").notNull().default(10), // 分単位
+  nostrAutoPostEnabled: text("nostr_auto_post_enabled").notNull().default("true"),
+  nostrAutoPostInterval: integer("nostr_auto_post_interval").notNull().default(10), // 分単位
 });
 
 export const bottles = sqliteTable("bottles", {
@@ -125,7 +130,8 @@ export const responseTypeSchema = z.enum([
   "error_no_stats",
   "error_message_too_long",
   "stats",
-  "list"
+  "list",
+  "auto_post" // 自動投稿用のメッセージタイプを追加
 ]);
 
 // 既存のエクスポートの後に追加

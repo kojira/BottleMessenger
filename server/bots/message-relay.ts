@@ -44,13 +44,23 @@ export class MessageRelay {
         botStatus: 'running'
       });
 
+      // 最新の設定を取得（自動投稿設定を含む）
+      const latestSettings = await storage.getSettings();
+      if (!latestSettings) {
+        throw new Error('Failed to get latest settings');
+      }
+
       if (this.blueskyBot) {
         console.log('Starting Bluesky DM watch...');
-        await this.blueskyBot.watchDMs(settings.blueskyIgnoreBeforeTime || null);
+        // 自動投稿設定が変更された場合に備えて、一度クリーンアップしてから再起動
+        this.blueskyBot.cleanup();
+        await this.blueskyBot.watchDMs(latestSettings.blueskyIgnoreBeforeTime || null);
       }
 
       if (this.nostrBot) {
         console.log('Starting Nostr DM watch...');
+        // 自動投稿設定が変更された場合に備えて、一度クリーンアップしてから再起動
+        await this.nostrBot.cleanup();
         await this.nostrBot.watchDMs();
       }
 

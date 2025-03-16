@@ -132,13 +132,41 @@ export class BlueskyBot {
       const archivedBottles = stats.totalBottles - activeBottles;
       const totalReplies = platformStats.replyCount;
 
-      const content = `📊 Blueskyボットの状態
-🌊 ボトル：${activeBottles}通が漂流中、${archivedBottles}通が受け取られました
-💬 返信：${totalReplies}通の返信が届いています`;
+      // 自動投稿用のメッセージテンプレートを取得
+      let autoPostTemplate = await this.getAutoPostTemplate();
+      
+      // テンプレートが取得できなかった場合はデフォルトのメッセージを使用
+      if (!autoPostTemplate) {
+        autoPostTemplate = `📊 Blueskyボットの状態
+🌊 ボトル：{activeBottles}通が漂流中、{archivedBottles}通が受け取られました
+💬 返信：{totalReplies}通の返信が届いています`;
+      }
+
+      // テンプレート内の変数を置換
+      const content = autoPostTemplate
+        .replace(/{activeBottles}/g, activeBottles.toString())
+        .replace(/{archivedBottles}/g, archivedBottles.toString())
+        .replace(/{totalReplies}/g, totalReplies.toString())
+        .replace(/{totalBottles}/g, stats.totalBottles.toString());
 
       await this.postStatus(content);
     } catch (error) {
       console.error('Failed to report stats:', error);
+    }
+  }
+
+  private async getAutoPostTemplate(): Promise<string | null> {
+    try {
+      // データベースから自動投稿用のメッセージテンプレートを取得
+      const responses = await storage.getBotResponses();
+      const autoPostResponse = responses.find(
+        r => r.platform === 'bluesky' && r.responseType === 'auto_post'
+      );
+      
+      return autoPostResponse ? autoPostResponse.message : null;
+    } catch (error) {
+      console.error('Failed to get auto post template:', error);
+      return null;
     }
   }
 
@@ -233,19 +261,30 @@ export class BlueskyBot {
         console.log(`Will ignore messages before: ${new Date(ignoreBeforeTime).toISOString()}`);
       }
 
-      // 初回の統計情報投稿
-      await this.reportStats();
-      console.log('Initial stats report posted');
+      // 設定を取得
+      const settings = await storage.getSettings();
+      const autoPostEnabled = settings?.blueskyAutoPostEnabled === 'true';
+      const autoPostInterval = settings?.blueskyAutoPostInterval || 10;
+      
+      console.log(`Bluesky auto-posting: ${autoPostEnabled ? 'enabled' : 'disabled'}, interval: ${autoPostInterval} minutes`);
 
-      // 10分ごとに統計情報を投稿
-      this.statsInterval = setInterval(async () => {
-        try {
-          await this.reportStats();
-          console.log('Periodic stats report posted');
-        } catch (error) {
-          console.error('Error in periodic stats report:', error);
-        }
-      }, 10 * 60 * 1000); // 10分
+      // 自動投稿が有効な場合のみ初回の統計情報を投稿
+      if (autoPostEnabled) {
+        await this.reportStats();
+        console.log('Initial stats report posted');
+
+        // 設定された間隔で統計情報を投稿
+        this.statsInterval = setInterval(async () => {
+          try {
+            await this.reportStats();
+            console.log(`Periodic stats report posted (interval: ${autoPostInterval} minutes)`);
+          } catch (error) {
+            console.error('Error in periodic stats report:', error);
+          }
+        }, autoPostInterval * 60 * 1000); // 分をミリ秒に変換
+      } else {
+        console.log('Auto-posting is disabled, skipping stats reports');
+      }
 
       // 前回の処理時刻を取得
       try {
