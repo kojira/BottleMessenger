@@ -20,16 +20,6 @@ services:
     volumes:
       - data:/app/data
       # Development volumes are defined in docker-compose.override.yml
-    restart: unless-stopped
-    networks:
-      - bottle-network
+    # restart: unless-stopped
     # コンテナが起動する前にボリュームのパーミッションを設定
     user: "1001:1001"  # appuser:nodejs
-
-networks:
-  bottle-network:
-    driver: bridge
-
-volumes:
-  sqlite-data:
-    # This ensures the SQLite database is persisted outside the container

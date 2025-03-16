@@ -61,13 +61,11 @@ The dashboard is intended for personal use only and does not include authenticat
 - @atproto/api for Bluesky integration
 - nostr-tools for Nostr protocol
 - Express.js for API endpoints
-- PostgreSQL for data persistence
 - React + shadcn/ui for dashboard
 
 ### Troubleshooting
 
 - If the bot disconnects, check your network connection and relay status
-- For database issues, verify PostgreSQL connection settings
 - Enable debug logging by setting `DEBUG=true`
 
 ## 日本語 {#japanese}
@@ -129,11 +127,9 @@ BlueskyとNostrのソーシャルネットワークを橋渡しする、クロ�
 - @atproto/api (Bluesky連携用)
 - nostr-tools (Nostrプロトコル用)
 - Express.js (APIエンドポイント用)
-- PostgreSQL (データ永続化)
 - React + shadcn/ui (ダッシュボード用)
 
 ### トラブルシューティング
 
 - ボットが切断された場合は、ネットワーク接続とリレーの状態を確認
-- データベースの問題は、PostgreSQL接続設定を確認
 - `DEBUG=true`を設定してデバッグログを有効化
