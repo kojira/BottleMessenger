@@ -95,6 +95,16 @@ export class BlueskyBot {
     }
   }
 
+  // 指定時刻より前のメッセージかどうかをチェック
+  private isMessageBeforeIgnoreTime(messageTime: Date, ignoreBeforeTime: number | null): boolean {
+    if (!ignoreBeforeTime) {
+      return false; // 無視する時刻が設定されていない場合は無視しない
+    }
+    
+    const messageTimestamp = messageTime.getTime();
+    return messageTimestamp < ignoreBeforeTime;
+  }
+
   private async postStatus(content: string) {
     try {
       await this.ensureSession();
@@ -132,7 +142,7 @@ export class BlueskyBot {
     }
   }
 
-  async checkNotifications() {
+  async checkNotifications(ignoreBeforeTime: number | null = null) {
     try {
       await this.ensureSession();
       console.log('Checking Bluesky DMs...');
@@ -185,6 +195,12 @@ export class BlueskyBot {
               continue;
             }
 
+            // 指定時刻より前のメッセージは無視
+            if (this.isMessageBeforeIgnoreTime(messageCreatedAt, ignoreBeforeTime)) {
+              console.log(`Skipping message before ignore time: ${message.sentAt}`);
+              continue;
+            }
+
             // スラッシュの有無に関わらずすべてのメッセージをコマンドとして処理
             await this.processCommand(message.sender.did, message.text);
           }
@@ -203,7 +219,7 @@ export class BlueskyBot {
     }
   }
 
-  async watchDMs(): Promise<void> {
+  async watchDMs(ignoreBeforeTime: number | null = null): Promise<void> {
     if (this.isWatching) {
       console.log('Already watching Bluesky DMs');
       return;
@@ -212,6 +228,10 @@ export class BlueskyBot {
     try {
       await this.ensureSession();
       console.log('Starting Bluesky DM watch...');
+      
+      if (ignoreBeforeTime) {
+        console.log(`Will ignore messages before: ${new Date(ignoreBeforeTime).toISOString()}`);
+      }
 
       // 初回の統計情報投稿
       await this.reportStats();
@@ -240,14 +260,14 @@ export class BlueskyBot {
       }
 
       // 初回の通知チェック
-      await this.checkNotifications();
+      await this.checkNotifications(ignoreBeforeTime);
       console.log('Initial DM check completed');
 
       // 30秒ごとに通知をチェック
       this.checkInterval = setInterval(async () => {
         try {
           console.log('Running periodic DM check...');
-          await this.checkNotifications();
+          await this.checkNotifications(ignoreBeforeTime);
           console.log('Periodic DM check completed');
         } catch (error) {
           console.error('Error in periodic DM check:', error);

@@ -10,8 +10,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -30,6 +32,9 @@ function SettingsPage() {
       nostrPrivateKey: "",
       nostrRelays: "",
       enabled: "true",
+      autoStart: "false",
+      blueskyIgnoreBeforeTime: undefined,
+      botStatus: "stopped",
     },
     values: settings || undefined,
   });
@@ -140,6 +145,54 @@ function SettingsPage() {
                   <FormLabel>Relays (JSON array)</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder='["wss://relay.damus.io", "wss://nos.lol"]' />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Bot Settings</h2>
+            <FormField
+              control={form.control}
+              name="autoStart"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">自動起動</FormLabel>
+                    <FormDescription>
+                      アプリケーション起動時にボットを自動的に起動します
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value === "true"}
+                      onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="blueskyIgnoreBeforeTime"
+              render={({ field }) => (
+                <FormItem className="border p-4 rounded-lg">
+                  <FormLabel className="text-base">Bluesky 無視する時刻</FormLabel>
+                  <FormDescription>
+                    この時刻より前のDMは処理されません（空白の場合はすべて処理）
+                  </FormDescription>
+                  <FormControl>
+                    <Input
+                      type="datetime-local"
+                      {...field}
+                      value={field.value ? new Date(field.value).toISOString().slice(0, 16) : ""}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value).getTime() : undefined;
+                        field.onChange(date);
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -4,8 +4,8 @@ import { BlueskyBot } from './bluesky';
 import { NostrBot } from './nostr';
 
 export class MessageRelay {
-  private blueskyBot: BlueskyBot | null = null;
-  private nostrBot: NostrBot | null = null;
+  blueskyBot: BlueskyBot | null = null;
+  nostrBot: NostrBot | null = null;
 
   async init() {
     console.log('Initializing message relay...');
@@ -19,11 +19,34 @@ export class MessageRelay {
     console.log('Setting up bots with configured credentials...');
     await this.setupBots(settings);
 
-    // Start watching for DMs
+    // 自動起動が有効な場合のみボットを起動
+    if (settings.autoStart === 'true') {
+      console.log('Auto-start is enabled, starting bots...');
+      await this.startBots(settings);
+    } else {
+      console.log('Auto-start is disabled, waiting for manual start...');
+      // ボットのステータスを停止中に設定
+      await storage.updateSettings({
+        ...settings,
+        botStatus: 'stopped',
+        autoStart: 'false' // 明示的に自動起動を無効に設定
+      });
+    }
+
+    console.log('Message relay initialization completed');
+  }
+
+  async startBots(settings: Settings) {
     try {
+      // ボットのステータスを起動中に設定
+      await storage.updateSettings({
+        ...settings,
+        botStatus: 'running'
+      });
+
       if (this.blueskyBot) {
         console.log('Starting Bluesky DM watch...');
-        await this.blueskyBot.watchDMs();
+        await this.blueskyBot.watchDMs(settings.blueskyIgnoreBeforeTime || null);
       }
 
       if (this.nostrBot) {
@@ -31,11 +54,44 @@ export class MessageRelay {
         await this.nostrBot.watchDMs();
       }
 
-      console.log('Message relay initialization completed');
+      console.log('Bots started successfully');
     } catch (error) {
-      console.error('Failed to initialize message relay:', error);
-      // 初期化エラーは記録するだけで、アプリケーションは継続して実行
+      console.error('Failed to start bots:', error);
+      // ボットのステータスをエラーに設定
+      await storage.updateSettings({
+        ...settings,
+        botStatus: 'error'
+      });
+      throw error;
     }
+  }
+
+  async stopBots() {
+    console.log('Stopping bots...');
+    const settings = await storage.getSettings();
+    
+    if (!settings) {
+      console.log('No settings found');
+      return;
+    }
+
+    if (this.blueskyBot) {
+      console.log('Stopping Bluesky bot...');
+      this.blueskyBot.cleanup();
+    }
+
+    if (this.nostrBot) {
+      console.log('Stopping Nostr bot...');
+      await this.nostrBot.cleanup();
+    }
+
+    // ボットのステータスを停止中に設定
+    await storage.updateSettings({
+      ...settings,
+      botStatus: 'stopped'
+    });
+
+    console.log('Bots stopped successfully');
   }
 
   private async setupBots(settings: Settings) {

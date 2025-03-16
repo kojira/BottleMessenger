@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Settings, type Message, type GlobalStats } from "@shared/schema";
-import { RefreshCw, Download, Upload } from "lucide-react";
+import { RefreshCw, Download, Upload, Play, Square, MessageCircle, Wine } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -24,6 +25,80 @@ import {
 } from "recharts";
 import { Link } from "wouter";
 
+// ボット起動ボタンコンポーネント
+function StartBotButton({ settings }: { settings?: Settings }) {
+  const { toast } = useToast();
+  
+  const startBot = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/bots/start", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Success",
+        description: "ボットを起動しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => startBot.mutate()}
+      disabled={startBot.isPending || settings?.botStatus === 'running'}
+    >
+      <Play className="h-4 w-4 mr-1" />
+      起動
+    </Button>
+  );
+}
+
+// ボット停止ボタンコンポーネント
+function StopBotButton() {
+  const { toast } = useToast();
+  
+  const stopBot = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/bots/stop", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Success",
+        description: "ボットを停止しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => stopBot.mutate()}
+      disabled={stopBot.isPending}
+    >
+      <Square className="h-4 w-4 mr-1" />
+      停止
+    </Button>
+  );
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
 
@@ -32,8 +107,17 @@ export default function Dashboard() {
   });
 
   const { data: messages, refetch: refetchMessages } = useQuery<Message[]>({ 
-    queryKey: ["/api/messages", { limit: 5 }]
+    queryKey: ["/api/messages", { limit: 5, includeBottles: true }]
   });
+
+  // Log messages for debugging
+  React.useEffect(() => {
+    if (messages) {
+      console.log('Messages received by dashboard:', JSON.stringify(messages, null, 2));
+      console.log('Messages with isBottle:', messages.filter(msg => (msg as any).isBottle));
+      console.log('Messages with targetPlatform=bottle:', messages.filter(msg => msg.targetPlatform === 'bottle'));
+    }
+  }, [messages]);
 
   const { data: globalStats } = useQuery<GlobalStats>({
     queryKey: ["/api/stats/global"]
@@ -75,7 +159,7 @@ export default function Dashboard() {
       // レスポンスデータを確認
       console.log('Export data:', data);
       console.log('Response type:', typeof data);
-      console.log('Has data:', Object.values(data).some(arr => arr?.length > 0));
+      console.log('Has data:', Object.values(data).some(arr => Array.isArray(arr) && arr.length > 0));
       console.log('Data keys:', Object.keys(data));
       console.log('Settings length:', data.settings?.length);
       console.log('Bottles length:', data.bottles?.length);
@@ -243,14 +327,17 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Bot Status</CardTitle>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => checkNotifications.mutate()}
-              disabled={checkNotifications.isPending}
-            >
-              <RefreshCw className={`h-4 w-4 ${checkNotifications.isPending ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => checkNotifications.mutate()}
+                disabled={checkNotifications.isPending}
+                title="通知を手動で確認"
+              >
+                <RefreshCw className={`h-4 w-4 ${checkNotifications.isPending ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -260,8 +347,14 @@ export default function Dashboard() {
                   <p className="text-sm text-muted-foreground">{settings?.blueskyHandle}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
-                    {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                  <span className={
+                    settings?.botStatus === 'running' ? 'text-green-500' : 
+                    settings?.botStatus === 'error' ? 'text-red-500' : 
+                    'text-yellow-500'
+                  }>
+                    {settings?.botStatus === 'running' ? '実行中' : 
+                     settings?.botStatus === 'error' ? 'エラー' : 
+                     '停止中'}
                   </span>
                   <Link href="/responses" className="text-sm text-blue-500 hover:underline">
                     応答設定
@@ -276,12 +369,29 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={settings?.enabled === 'true' ? 'text-green-500' : 'text-red-500'}>
-                    {settings?.enabled === 'true' ? 'Active' : 'Inactive'}
+                  <span className={
+                    settings?.botStatus === 'running' ? 'text-green-500' : 
+                    settings?.botStatus === 'error' ? 'text-red-500' : 
+                    'text-yellow-500'
+                  }>
+                    {settings?.botStatus === 'running' ? '実行中' : 
+                     settings?.botStatus === 'error' ? 'エラー' : 
+                     '停止中'}
                   </span>
                   <Link href="/responses" className="text-sm text-blue-500 hover:underline">
                     応答設定
                   </Link>
+                </div>
+              </div>
+              <div className="flex justify-between mt-4 border-t pt-4">
+                <div className="text-sm text-muted-foreground">
+                  {settings?.autoStart === 'true' ? '自動起動: 有効' : '自動起動: 無効'}
+                  {settings?.blueskyIgnoreBeforeTime && 
+                    ` / ${new Date(settings.blueskyIgnoreBeforeTime).toLocaleString()} 以前のDMは無視`}
+                </div>
+                <div className="flex gap-2">
+                  <StartBotButton settings={settings} />
+                  <StopBotButton />
                 </div>
               </div>
             </div>
@@ -290,7 +400,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Recent Messages</CardTitle>
+            <CardTitle>Recent Messages & Bottles</CardTitle>
             <Button
               variant="outline"
               size="icon"
@@ -304,7 +414,14 @@ export default function Dashboard() {
               {messages?.map(msg => (
                 <div key={msg.id} className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium">{msg.sourceUser}</p>
+                    <div className="flex items-center gap-2">
+                      {(msg as any).isBottle || msg.targetPlatform === 'bottle' ? (
+                        <Wine className="h-4 w-4 text-blue-500" />
+                      ) : (
+                        <MessageCircle className="h-4 w-4 text-gray-500" />
+                      )}
+                      <p className="font-medium">{msg.sourceUser}</p>
+                    </div>
                     <span className={
                       msg.status === 'sent' ? 'text-green-500' :
                       msg.status === 'failed' ? 'text-red-500' :

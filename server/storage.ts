@@ -14,6 +14,7 @@ export interface IStorage {
 
   // Message operations
   getMessages(limit?: number): Promise<Message[]>;
+  getMessagesAndBottles(limit?: number): Promise<Message[]>;
   getMessage(id: number): Promise<Message | undefined>;
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessage(id: number, message: Partial<Message>): Promise<Message>;
@@ -136,6 +137,49 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getMessagesAndBottles(limit = 100): Promise<Message[]> {
+    // Get messages
+    const recentMessages = await this.getMessages(Math.floor(limit / 2));
+    console.log('Recent messages:', recentMessages);
+    
+    // Get bottles
+    const recentBottles = await db
+      .select()
+      .from(bottles)
+      .orderBy(sql`${bottles.createdAt} DESC`)
+      .limit(Math.floor(limit / 2));
+    console.log('Recent bottles:', recentBottles);
+    
+    // Convert bottles to message format
+    const bottlesAsMessages: Message[] = recentBottles.map(bottle => ({
+      id: bottle.id + 1000000, // Add offset to avoid ID conflicts
+      sourcePlatform: bottle.senderPlatform,
+      sourceId: bottle.senderId,
+      sourceUser: bottle.senderId,
+      targetPlatform: "bottle",
+      targetId: null,
+      content: bottle.content,
+      createdAt: bottle.createdAt,
+      status: "sent", // Bottles are always "sent"
+      error: null,
+      // Add a flag to identify this as a bottle
+      isBottle: true
+    } as Message & { isBottle: boolean }));
+    console.log('Bottles as messages:', bottlesAsMessages);
+    
+    // Combine and sort by creation date
+    const combined = [...recentMessages, ...bottlesAsMessages]
+      .sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : Number(a.createdAt);
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : Number(b.createdAt);
+        return dateB - dateA;
+      })
+      .slice(0, limit);
+    console.log('Combined messages and bottles:', combined);
+    
+    return combined;
+  }
+
   // Bottle operations
   async createBottle(bottle: InsertBottle): Promise<Bottle> {
     const [created] = await db
@@ -172,21 +216,34 @@ export class DatabaseStorage implements IStorage {
     platform: string,
     userId: string
   ): Promise<(Bottle & { replyCount: number })[]> {
-    return await db
-      .select({
-        ...bottles,
-        replyCount: sql<number>`COUNT(${bottleReplies.id})`
-      })
+    // ボトルを取得
+    const bottleResults = await db
+      .select()
       .from(bottles)
-      .leftJoin(bottleReplies, eq(bottles.id, bottleReplies.bottleId))
       .where(
         and(
           eq(bottles.senderPlatform, platform),
           eq(bottles.senderId, userId)
         )
       )
-      .groupBy(bottles.id)
       .orderBy(bottles.createdAt);
+    
+    // 各ボトルの返信数を取得
+    const result: (Bottle & { replyCount: number })[] = [];
+    
+    for (const bottle of bottleResults) {
+      const [{ count }] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(bottleReplies)
+        .where(eq(bottleReplies.bottleId, bottle.id));
+      
+      result.push({
+        ...bottle,
+        replyCount: Number(count)
+      });
+    }
+    
+    return result;
   }
 
   async archiveBottle(id: number): Promise<void> {
@@ -319,12 +376,16 @@ export class DatabaseStorage implements IStorage {
       .select({ totalReplies: sql<number>`COUNT(*)` })
       .from(bottleReplies);
 
+    // SQLiteでの日付計算 - 24時間前のタイムスタンプを計算
+    const twentyFourHoursAgo = new Date();
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
     // アクティブなユーザー数を取得（過去24時間以内にアクティビティのあるユーザー）
     const [{ activeUsers }] = await db
       .select({ activeUsers: sql<number>`COUNT(DISTINCT "user_id")` })
       .from(userStats)
       .where(
-        sql`${userStats.lastActivity} > NOW() - INTERVAL '24 hours'`
+        sql`${userStats.lastActivity} > ${twentyFourHoursAgo.getTime()}`
       );
 
     // アクティブなボトルの数を取得
@@ -332,6 +393,10 @@ export class DatabaseStorage implements IStorage {
       .select({ activeBottles: sql<number>`COUNT(*)` })
       .from(bottles)
       .where(eq(bottles.status, "active"));
+
+    // SQLiteでの日付計算 - 30日前のタイムスタンプを計算
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     // プラットフォーム別の統計を取得
     const platformStats = await db
@@ -341,33 +406,38 @@ export class DatabaseStorage implements IStorage {
         bottleCount: sql<number>`SUM(${userStats.bottlesSent})`,
         replyCount: sql<number>`SUM(${userStats.repliesSent})`,
         mau: sql<number>`COUNT(DISTINCT CASE 
-          WHEN ${userStats.lastActivity} > NOW() - INTERVAL '30 days' 
+          WHEN ${userStats.lastActivity} > ${thirtyDaysAgo.getTime()} 
           THEN "user_id" 
           END)`
       })
       .from(userStats)
       .groupBy(userStats.platform);
 
+    // SQLiteでの日付計算 - 7日前のタイムスタンプを計算
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     // 過去7日間の日別統計を取得
+    // SQLiteでは日付関数が異なるため、日付の切り捨てを独自に実装
     const dailyStats = await db
       .select({
-        date: sql<string>`DATE_TRUNC('day', ${bottles.createdAt})`,
+        date: sql<string>`date(${bottles.createdAt}/1000, 'unixepoch')`,
         bottleCount: sql<number>`COUNT(*)`,
       })
       .from(bottles)
-      .where(sql`${bottles.createdAt} > NOW() - INTERVAL '7 days'`)
-      .groupBy(sql`DATE_TRUNC('day', ${bottles.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('day', ${bottles.createdAt})`);
+      .where(sql`${bottles.createdAt} > ${sevenDaysAgo.getTime()}`)
+      .groupBy(sql`date(${bottles.createdAt}/1000, 'unixepoch')`)
+      .orderBy(sql`date(${bottles.createdAt}/1000, 'unixepoch')`);
 
     const dailyReplies = await db
       .select({
-        date: sql<string>`DATE_TRUNC('day', ${bottleReplies.createdAt})`,
+        date: sql<string>`date(${bottleReplies.createdAt}/1000, 'unixepoch')`,
         replyCount: sql<number>`COUNT(*)`,
       })
       .from(bottleReplies)
-      .where(sql`${bottleReplies.createdAt} > NOW() - INTERVAL '7 days'`)
-      .groupBy(sql`DATE_TRUNC('day', ${bottleReplies.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('day', ${bottleReplies.createdAt})`);
+      .where(sql`${bottleReplies.createdAt} > ${sevenDaysAgo.getTime()}`)
+      .groupBy(sql`date(${bottleReplies.createdAt}/1000, 'unixepoch')`)
+      .orderBy(sql`date(${bottleReplies.createdAt}/1000, 'unixepoch')`);
 
     return {
       totalBottles,

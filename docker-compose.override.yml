@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      target: development
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # マウントをシンプルに - プロジェクトルート全体をマウント
+      - ./:/app/
+      # データディレクトリをホスト側と同期
+      - ./data:/app/data
+      # node_modulesディレクトリを除外（コンテナ内のnode_modulesを使用）
+      - /app/node_modules
+    # Don't override the command, let the entrypoint script handle it
+    # Use root user to avoid permission issues
+    user: "root"
+    # エントリポイントスクリプトに実行権限を付与するコマンドを追加
+    command: sh -c "chmod +x /app/docker-entrypoint.sh && ./docker-entrypoint.sh"

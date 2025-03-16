@@ -1,72 +1,75 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const botSettings = pgTable("bot_settings", {
-  id: serial("id").primaryKey(),
+export const botSettings = sqliteTable("bot_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   blueskyHandle: text("bluesky_handle").notNull(),
   blueskyPassword: text("bluesky_password").notNull(),
   nostrPrivateKey: text("nostr_private_key").notNull(),
   nostrRelays: text("nostr_relays").notNull().default('["wss://relay.damus.io", "wss://nos.lol"]'),
   enabled: text("enabled").notNull().default("true"),
+  autoStart: text("auto_start").notNull().default("false"),
+  blueskyIgnoreBeforeTime: integer("bluesky_ignore_before_time"),
+  botStatus: text("bot_status").notNull().default("stopped"),
 });
 
-export const bottles = pgTable("bottles", {
-  id: serial("id").primaryKey(),
+export const bottles = sqliteTable("bottles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   content: text("content").notNull(),
   senderPlatform: text("sender_platform").notNull(),
   senderId: text("sender_id").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().defaultNow(),
   status: text("status").notNull().default("active"),
 });
 
-export const bottleReplies = pgTable("bottle_replies", {
-  id: serial("id").primaryKey(),
+export const bottleReplies = sqliteTable("bottle_replies", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   bottleId: integer("bottle_id")
     .notNull()
     .references(() => bottles.id),
   content: text("content").notNull(),
   senderPlatform: text("sender_platform").notNull(),
   senderId: text("sender_id").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
-export const userStats = pgTable("user_stats", {
-  id: serial("id").primaryKey(),
+export const userStats = sqliteTable("user_stats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   platform: text("platform").notNull(),
   userId: text("user_id").notNull(),
   bottlesSent: integer("bottles_sent").notNull().default(0),
   bottlesReceived: integer("bottles_received").notNull().default(0),
   repliesSent: integer("replies_sent").notNull().default(0),
-  lastActivity: timestamp("last_activity").notNull().defaultNow(),
+  lastActivity: integer("last_activity", { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
-export const messages = pgTable("messages", {
-  id: serial("id").primaryKey(),
+export const messages = sqliteTable("messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   sourcePlatform: text("source_platform").notNull(),
   sourceId: text("source_id").notNull(),
   sourceUser: text("source_user").notNull(),
   targetPlatform: text("target_platform").notNull(),
   targetId: text("target_id"),
   content: text("content").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().defaultNow(),
   status: text("status").notNull(),
   error: text("error"),
 });
 
-export const botState = pgTable("bot_state", {
-  id: serial("id").primaryKey(),
+export const botState = sqliteTable("bot_state", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   platform: text("platform").notNull().unique(),
-  lastProcessedAt: timestamp("last_processed_at").notNull(),
+  lastProcessedAt: integer("last_processed_at", { mode: 'timestamp' }).notNull(),
 });
 
-export const botResponses = pgTable("bot_responses", {
-  id: serial("id").primaryKey(),
+export const botResponses = sqliteTable("bot_responses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   platform: text("platform").notNull(),
   responseType: text("response_type").notNull(),
   message: text("message").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().defaultNow(),
+  updatedAt: integer("updated_at", { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
 // Insert schemas

@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-production}
+    ports:
+      - "3002:5000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - SQLITE_DB_PATH=/app/data
+      # Uncomment and set these values for Bluesky integration
+      # - BLUESKY_HANDLE=your_handle
+      # - BLUESKY_PASSWORD=your_password
+      # Uncomment and set this value for Nostr integration
+      # - NOSTR_PRIVATE_KEY=your_private_key
+      # - NOSTR_RELAYS=["wss://relay.damus.io", "wss://nos.lol"]
+    volumes:
+      - data:/app/data
+      # Development volumes are defined in docker-compose.override.yml
+    restart: unless-stopped
+    networks:
+      - bottle-network
+    # コンテナが起動する前にボリュームのパーミッションを設定
+    user: "1001:1001"  # appuser:nodejs
+
+networks:
+  bottle-network:
+    driver: bridge
+
+volumes:
+  sqlite-data:
+    # This ensures the SQLite database is persisted outside the container

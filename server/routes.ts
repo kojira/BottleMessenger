@@ -36,8 +36,15 @@ export async function registerRoutes(app: Express) {
   // Message routes
   app.get("/api/messages", async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
-    const messages = await storage.getMessages(limit);
-    res.json(messages);
+    const includeBottles = req.query.includeBottles === 'true';
+    
+    if (includeBottles) {
+      const combined = await storage.getMessagesAndBottles(limit);
+      res.json(combined);
+    } else {
+      const messages = await storage.getMessages(limit);
+      res.json(messages);
+    }
   });
 
   // Check Bluesky notifications manually
@@ -47,11 +54,39 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Bluesky bot not configured" });
       }
 
-      await messageRelay.blueskyBot.checkNotifications();
+      const settings = await storage.getSettings();
+      await messageRelay.blueskyBot.checkNotifications(settings?.blueskyIgnoreBeforeTime || null);
       res.json({ success: true });
     } catch (error) {
       console.error('Error checking Bluesky notifications:', error);
       res.status(500).json({ error: "Failed to check notifications" });
+    }
+  });
+
+  // ボットの起動エンドポイント
+  app.post("/api/bots/start", async (_req, res) => {
+    try {
+      const settings = await storage.getSettings();
+      if (!settings) {
+        return res.status(400).json({ error: "Bot settings not configured" });
+      }
+
+      await messageRelay.startBots(settings);
+      res.json({ success: true, status: "running" });
+    } catch (error) {
+      console.error('Error starting bots:', error);
+      res.status(500).json({ error: "Failed to start bots" });
+    }
+  });
+
+  // ボットの停止エンドポイント
+  app.post("/api/bots/stop", async (_req, res) => {
+    try {
+      await messageRelay.stopBots();
+      res.json({ success: true, status: "stopped" });
+    } catch (error) {
+      console.error('Error stopping bots:', error);
+      res.status(500).json({ error: "Failed to stop bots" });
     }
   });
 

@@ -1,6 +1,21 @@
 {
+  "name": "default",
   "variant": "professional",
-  "primary": "hsl(222.2 47.4% 11.2%)",
   "appearance": "light",
-  "radius": 0.5
+  "radius": 0.5,
+  "primary": "#007bff",
+  "primary-foreground": "#ffffff",
+  "secondary": "#6c757d",
+  "secondary-foreground": "#ffffff",
+  "background": "#ffffff",
+  "foreground": "#000000",
+  "muted": "#f8f9fa",
+  "muted-foreground": "#6c757d",
+  "accent": "#fd7e14",
+  "accent-foreground": "#ffffff",
+  "destructive": "#dc3545",
+  "destructive-foreground": "#ffffff",
+  "border": "#dee2e6",
+  "input": "#e9ecef",
+  "ring": "#007bff"
 }

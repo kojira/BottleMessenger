@@ -73,11 +73,10 @@ app.get("/api/test", (_req, res) => {
     const port = 5000;
     server.listen({
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host: "localhost",
     }, () => {
       log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-      log(`Serving on http://0.0.0.0:${port}`);
+      log(`Serving on http://localhost:${port}`);
     });
   } catch (error) {
     log('Fatal error during server initialization:');
