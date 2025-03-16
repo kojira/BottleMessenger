@@ -74,6 +74,7 @@ from {platform}`,
     error_no_reply_permission: "このボトルメールへの返信権限がありません。",
     error_no_bottles_sent: "まだボトルメールを送信していません。",
     error_no_stats: "統計情報がありません。",
+    error_message_too_long: "メッセージは140文字以内にしてください。",
     stats: `📊 あなたの統計情報
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
@@ -114,6 +115,7 @@ from {platform}`,
     error_no_reply_permission: "このボトルメールへの返信権限がありません。",
     error_no_bottles_sent: "まだボトルメールを送信していません。",
     error_no_stats: "統計情報がありません。",
+    error_message_too_long: "メッセージは140文字以内にしてください。",
     stats: `📊 あなたの統計情報
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
@@ -311,6 +313,7 @@ function ResponsesPage() {
                         <SelectItem value="error_no_reply_permission">返信権限なし</SelectItem>
                         <SelectItem value="error_no_bottles_sent">送信ボトルなし</SelectItem>
                         <SelectItem value="error_no_stats">統計情報なし</SelectItem>
+                        <SelectItem value="error_message_too_long">メッセージ長すぎ</SelectItem>
                         <SelectItem value="stats">統計情報</SelectItem>
                       </SelectContent>
                     </Select>

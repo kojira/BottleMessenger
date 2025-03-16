@@ -123,6 +123,7 @@ export const responseTypeSchema = z.enum([
   "error_no_reply_permission",
   "error_no_bottles_sent",
   "error_no_stats",
+  "error_message_too_long",
   "stats",
   "list"
 ]);

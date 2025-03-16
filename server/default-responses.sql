@@ -37,6 +37,8 @@ from {platform}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   
   ('bluesky', 'error', 'エラーが発生しました。もう一度お試しください。', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   
+  ('bluesky', 'error_message_too_long', 'メッセージは140文字以内にしてください。', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  
   ('bluesky', 'stats', '📊 あなたの統計情報
 送信したボトルメール: {sent}通
 受信したボトルメール: {received}通
@@ -76,6 +78,8 @@ from {platform}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 {bottleList}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   
   ('nostr', 'error', 'エラーが発生しました。もう一度お試しください。', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  
+  ('nostr', 'error_message_too_long', 'メッセージは140文字以内にしてください。', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   
   ('nostr', 'stats', '📊 あなたの統計情報
 送信したボトルメール: {sent}通

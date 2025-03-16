@@ -217,7 +217,7 @@ export class DatabaseStorage implements IStorage {
     platform: string,
     userId: string
   ): Promise<(Bottle & { replyCount: number })[]> {
-    // ボトルを取得
+    // ボトルとその返信情報を取得
     const bottleResults = await db
       .select()
       .from(bottles)
@@ -226,25 +226,46 @@ export class DatabaseStorage implements IStorage {
           eq(bottles.senderPlatform, platform),
           eq(bottles.senderId, userId)
         )
-      )
-      .orderBy(bottles.createdAt);
+      );
     
-    // 各ボトルの返信数を取得
-    const result: (Bottle & { replyCount: number })[] = [];
+    // 各ボトルの返信数と最新の返信日時を取得
+    const result: (Bottle & { replyCount: number; latestReplyDate?: Date })[] = [];
     
     for (const bottle of bottleResults) {
+      // 返信数を取得
       const [{ count }] = await db
         .select({ count: sql<number>`COUNT(*)` })
         .from(bottleReplies)
         .where(eq(bottleReplies.bottleId, bottle.id));
       
+      // 最新の返信日時を取得
+      const latestReplies = await db
+        .select()
+        .from(bottleReplies)
+        .where(eq(bottleReplies.bottleId, bottle.id))
+        .orderBy(sql`${bottleReplies.createdAt} DESC`)
+        .limit(1);
+      
+      const latestReplyDate = latestReplies.length > 0 
+        ? new Date(latestReplies[0].createdAt) 
+        : undefined;
+      
       result.push({
         ...bottle,
-        replyCount: Number(count)
+        replyCount: Number(count),
+        latestReplyDate
       });
     }
     
-    return result;
+    // 最新の返信があるものを優先的に、なければボトル作成日でソート
+    result.sort((a, b) => {
+      const dateA = a.latestReplyDate || new Date(a.createdAt);
+      const dateB = b.latestReplyDate || new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime(); // 降順（最新順）
+    });
+    
+    // 最大10件に制限
+    return result.slice(0, 10);
   }
 
   async archiveBottle(id: number): Promise<void> {

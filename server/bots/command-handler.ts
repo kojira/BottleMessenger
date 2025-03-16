@@ -101,6 +101,12 @@ help または ヘルプ - このヘルプを表示
       return { content: errorMessage, error: true };
     }
 
+    // メッセージの長さを140文字に制限
+    if (content.length > 140) {
+      const errorMessage = await this.getResponse(platform, "error_message_too_long", "メッセージは140文字以内にしてください。");
+      return { content: errorMessage, error: true };
+    }
+
     console.log(`Creating new bottle from ${platform}:${userId} with content: ${content}`);
 
     const bottle: InsertBottle = {
@@ -167,6 +173,12 @@ help または ヘルプ - このヘルプを表示
 
     if (!bottleId || !content) {
       const errorMessage = await this.getResponse(platform, "error_missing_id_content", "ボトルメールIDと返信内容を入力してください。");
+      return { content: errorMessage, error: true };
+    }
+
+    // メッセージの長さを140文字に制限
+    if (content.length > 140) {
+      const errorMessage = await this.getResponse(platform, "error_message_too_long", "メッセージは140文字以内にしてください。");
       return { content: errorMessage, error: true };
     }
 
