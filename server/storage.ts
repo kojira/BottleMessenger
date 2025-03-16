@@ -18,6 +18,7 @@ export interface IStorage {
   getMessage(id: number): Promise<Message | undefined>;
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessage(id: number, message: Partial<Message>): Promise<Message>;
+  deleteMessage(id: number): Promise<void>; // メッセージ削除メソッドを追加
 
   // Bottle operations
   createBottle(bottle: InsertBottle): Promise<Bottle>;
@@ -25,10 +26,13 @@ export interface IStorage {
   getRandomActiveBottle(platform: string, userId: string): Promise<Bottle | null>;
   getUserBottles(platform: string, userId: string): Promise<(Bottle & { replyCount: number })[]>;
   archiveBottle(id: number): Promise<void>;
+  deleteBottle(id: number): Promise<void>; // ボトル削除メソッドを追加
+  deleteBottleReplies(bottleId: number): Promise<void>; // ボトルの返信削除メソッドを追加
 
   // Bottle Reply operations
   createBottleReply(reply: InsertBottleReply): Promise<BottleReply>;
   getBottleReplies(bottleId: number): Promise<BottleReply[]>;
+  deleteBottleReply(id: number): Promise<void>; // ボトル返信削除メソッドを追加
 
   // User Stats operations
   getUserStats(platform: string, userId: string): Promise<UserStats | null>;
@@ -136,6 +140,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteMessage(id: number): Promise<void> {
+    await db
+      .delete(messages)
+      .where(eq(messages.id, id));
   }
 
   async getMessagesAndBottles(limit = 100): Promise<Message[]> {
@@ -275,6 +285,22 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bottles.id, id));
   }
 
+  async deleteBottle(id: number): Promise<void> {
+    // ボトルを削除する前に、関連する返信も削除
+    await this.deleteBottleReplies(id);
+    
+    // ボトルを削除
+    await db
+      .delete(bottles)
+      .where(eq(bottles.id, id));
+  }
+
+  async deleteBottleReplies(bottleId: number): Promise<void> {
+    await db
+      .delete(bottleReplies)
+      .where(eq(bottleReplies.bottleId, bottleId));
+  }
+
   // Bottle Reply operations
   async createBottleReply(reply: InsertBottleReply): Promise<BottleReply> {
     const [created] = await db
@@ -290,6 +316,12 @@ export class DatabaseStorage implements IStorage {
       .from(bottleReplies)
       .where(eq(bottleReplies.bottleId, bottleId))
       .orderBy(bottleReplies.createdAt);
+  }
+
+  async deleteBottleReply(id: number): Promise<void> {
+    await db
+      .delete(bottleReplies)
+      .where(eq(bottleReplies.id, id));
   }
 
   // User Stats operations

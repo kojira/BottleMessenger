@@ -47,6 +47,51 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // メッセージ削除エンドポイント
+  app.delete("/api/messages/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+      await storage.deleteMessage(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
+  // ボトル削除エンドポイント
+  app.delete("/api/bottles/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+      await storage.deleteBottle(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting bottle:', error);
+      res.status(500).json({ error: "Failed to delete bottle" });
+    }
+  });
+
+  // ボトル返信削除エンドポイント
+  app.delete("/api/bottle-replies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+      await storage.deleteBottleReply(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting bottle reply:', error);
+      res.status(500).json({ error: "Failed to delete bottle reply" });
+    }
+  });
+
   // Check Bluesky notifications manually
   app.post("/api/bluesky/check-notifications", async (_req, res) => {
     try {

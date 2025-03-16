@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Settings, type Message, type GlobalStats } from "@shared/schema";
-import { RefreshCw, Download, Upload, Play, Square, MessageCircle, Wine } from "lucide-react";
+import { RefreshCw, Download, Upload, Play, Square, MessageCircle, Wine, Trash2 } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -550,16 +550,17 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               {messages?.map(msg => (
-                <div key={msg.id} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {(msg as any).isBottle || msg.targetPlatform === 'bottle' ? (
-                        <Wine className="h-4 w-4 text-blue-500" />
-                      ) : (
-                        <MessageCircle className="h-4 w-4 text-gray-500" />
-                      )}
-                      <p className="font-medium">{msg.sourceUser}</p>
-                    </div>
+              <div key={msg.id} className="space-y-1 border-b pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {(msg as any).isBottle || msg.targetPlatform === 'bottle' ? (
+                      <Wine className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4 text-gray-500" />
+                    )}
+                    <p className="font-medium">{msg.sourceUser}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <span className={
                       msg.status === 'sent' ? 'text-green-500' :
                       msg.status === 'failed' ? 'text-red-500' :
@@ -567,9 +568,43 @@ export default function Dashboard() {
                     }>
                       {msg.status}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={async () => {
+                        try {
+                          // ボトルかメッセージかを判断
+                          if ((msg as any).isBottle) {
+                            // ボトルの場合、IDから1000000を引いて元のボトルIDを取得
+                            const bottleId = msg.id - 1000000;
+                            await apiRequest("DELETE", `/api/bottles/${bottleId}`);
+                          } else {
+                            // 通常のメッセージの場合
+                            await apiRequest("DELETE", `/api/messages/${msg.id}`);
+                          }
+                          // 削除成功後、メッセージリストを更新
+                          refetchMessages();
+                          toast({
+                            title: "Success",
+                            description: "メッセージを削除しました",
+                          });
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: "メッセージの削除に失敗しました",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      title="削除"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">{msg.content}</p>
                 </div>
+                <p className="text-sm text-muted-foreground">{msg.content}</p>
+              </div>
               ))}
             </div>
           </CardContent>
