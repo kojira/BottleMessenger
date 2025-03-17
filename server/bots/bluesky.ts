@@ -16,6 +16,7 @@ export class BlueskyBot {
   private readonly LOGIN_COOLDOWN = 5 * 60 * 1000; // 5分
   private checkInterval: NodeJS.Timeout | null = null;
   private statsInterval: NodeJS.Timeout | null = null;
+  private isCheckingNotifications: boolean = false; // 通知チェック中かどうかのフラグ
 
   constructor(credentials: BlueskyCredentials) {
     console.log('Initializing BlueskyBot with handle:', credentials.identifier);
@@ -170,7 +171,79 @@ export class BlueskyBot {
     }
   }
 
+  // 単一の会話を処理するヘルパー関数
+  private async processConversation(convo: any, state: any, ignoreBeforeTime: number | null = null) {
+    try {
+      console.log('Processing conversation:', {
+        id: convo.id,
+        participants: convo.participants
+      });
+
+      const messagesResponse = await this.chatAgent.chat.bsky.convo.getMessages({
+        convoId: convo.id,
+        limit: 10  // 最新の10件に制限
+      });
+
+      console.log(`Retrieved ${messagesResponse.data.messages.length} messages from conversation ${convo.id}`);
+
+      for (const message of messagesResponse.data.messages) {
+        // メッセージの詳細をログ出力
+        console.log('Processing message:', {
+          sender: message.sender?.did,
+          text: message.text,
+          sentAt: message.sentAt
+        });
+
+        // 送信者情報の存在確認
+        if (!message.sender?.did) {
+          console.log('Skipping message with invalid sender');
+          continue;
+        }
+
+        // 前回の処理時刻以降のメッセージのみを処理
+        const messageCreatedAt = new Date(message.sentAt);
+        if (state && messageCreatedAt <= state.lastProcessedAt) {
+          console.log('Skipping already processed message:', message.sentAt);
+          continue;
+        }
+
+        // 指定時刻より前のメッセージは無視
+        if (this.isMessageBeforeIgnoreTime(messageCreatedAt, ignoreBeforeTime)) {
+          console.log(`Skipping message before ignore time: ${message.sentAt}`);
+          continue;
+        }
+
+        // スラッシュの有無に関わらずすべてのメッセージをコマンドとして処理
+        await this.processCommand(message.sender.did, message.text);
+      }
+    } catch (error) {
+      console.error('Error processing conversation:', error);
+    }
+  }
+
+  // 会話を並列処理するためのヘルパー関数
+  private async processConversationsInBatches(convos: any[], state: any, ignoreBeforeTime: number | null = null, batchSize: number = 3) {
+    // 会話を指定されたバッチサイズで処理
+    for (let i = 0; i < convos.length; i += batchSize) {
+      const batch = convos.slice(i, i + batchSize);
+      console.log(`Processing batch ${i / batchSize + 1} of ${Math.ceil(convos.length / batchSize)}, size: ${batch.length}`);
+      
+      // バッチ内の会話を並列処理
+      await Promise.all(
+        batch.map(convo => this.processConversation(convo, state, ignoreBeforeTime))
+      );
+    }
+  }
+
   async checkNotifications(ignoreBeforeTime: number | null = null) {
+    // 既に通知チェック中の場合は処理をスキップ
+    if (this.isCheckingNotifications) {
+      console.log('Previous notification check still in progress, skipping this run');
+      return;
+    }
+
+    this.isCheckingNotifications = true; // チェック開始フラグを設定
+    
     try {
       await this.ensureSession();
       console.log('Checking Bluesky DMs...');
@@ -187,55 +260,8 @@ export class BlueskyBot {
       const response = await this.chatAgent.chat.bsky.convo.listConvos();
       console.log(`Found ${response.data.convos.length} conversations`);
 
-      // 各会話のメッセージを処理
-      for (const convo of response.data.convos) {
-        try {
-          console.log('Processing conversation:', {
-            id: convo.id,
-            participants: convo.participants
-          });
-
-          const messagesResponse = await this.chatAgent.chat.bsky.convo.getMessages({
-            convoId: convo.id,
-            limit: 10  // 最新の10件に制限
-          });
-
-          console.log(`Retrieved ${messagesResponse.data.messages.length} messages from conversation ${convo.id}`);
-
-          for (const message of messagesResponse.data.messages) {
-            // メッセージの詳細をログ出力
-            console.log('Processing message:', {
-              sender: message.sender?.did,
-              text: message.text,
-              sentAt: message.sentAt
-            });
-
-            // 送信者情報の存在確認
-            if (!message.sender?.did) {
-              console.log('Skipping message with invalid sender');
-              continue;
-            }
-
-            // 前回の処理時刻以降のメッセージのみを処理
-            const messageCreatedAt = new Date(message.sentAt);
-            if (state && messageCreatedAt <= state.lastProcessedAt) {
-              console.log('Skipping already processed message:', message.sentAt);
-              continue;
-            }
-
-            // 指定時刻より前のメッセージは無視
-            if (this.isMessageBeforeIgnoreTime(messageCreatedAt, ignoreBeforeTime)) {
-              console.log(`Skipping message before ignore time: ${message.sentAt}`);
-              continue;
-            }
-
-            // スラッシュの有無に関わらずすべてのメッセージをコマンドとして処理
-            await this.processCommand(message.sender.did, message.text);
-          }
-        } catch (error) {
-          console.error('Error processing conversation:', error);
-        }
-      }
+      // 会話を並列処理（3つずつ）
+      await this.processConversationsInBatches(response.data.convos, state, ignoreBeforeTime, 3);
 
       // 最後の処理時刻を更新
       await storage.updateBotState('bluesky', new Date());
@@ -244,6 +270,10 @@ export class BlueskyBot {
     } catch (error) {
       console.error('Failed to check Bluesky DMs:', error);
       throw error;
+    } finally {
+      // 処理が完了したらフラグをリセット
+      this.isCheckingNotifications = false;
+      console.log('Notification check completed, ready for next run');
     }
   }
 
