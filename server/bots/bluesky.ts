@@ -186,9 +186,16 @@ export class BlueskyBot {
 
       console.log(`Retrieved ${messagesResponse.data.messages.length} messages from conversation ${convo.id}`);
 
+      // 最新のメッセージIDを保存（既読マーク用）
+      let latestMessageId: string | null = null;
+      if (messagesResponse.data.messages.length > 0) {
+        latestMessageId = messagesResponse.data.messages[0].id;
+      }
+
       for (const message of messagesResponse.data.messages) {
         // メッセージの詳細をログ出力
         console.log('Processing message:', {
+          id: message.id,
           sender: message.sender?.did,
           text: message.text,
           sentAt: message.sentAt
@@ -215,6 +222,19 @@ export class BlueskyBot {
 
         // スラッシュの有無に関わらずすべてのメッセージをコマンドとして処理
         await this.processCommand(message.sender.did, message.text);
+      }
+
+      // 会話内のメッセージを処理した後、既読にマークする
+      if (latestMessageId) {
+        try {
+          await this.chatAgent.chat.bsky.convo.updateRead({
+            convoId: convo.id,
+            messageId: latestMessageId
+          });
+          console.log(`Marked conversation ${convo.id} as read up to message ${latestMessageId}`);
+        } catch (error) {
+          console.error(`Failed to mark conversation ${convo.id} as read:`, error);
+        }
       }
     } catch (error) {
       console.error('Error processing conversation:', error);
@@ -256,12 +276,31 @@ export class BlueskyBot {
         console.log('No previous state found, starting fresh');
       }
 
-      // 会話リストを取得
-      const response = await this.chatAgent.chat.bsky.convo.listConvos();
-      console.log(`Found ${response.data.convos.length} conversations`);
+      // 全ての会話を取得するためのページネーション処理
+      let allConvos: any[] = [];
+      let cursor: string | undefined = undefined;
+      
+      do {
+        // 未読の会話リストを取得
+        const response: any = await this.chatAgent.chat.bsky.convo.listConvos({
+          readState: "unread",
+          cursor: cursor
+        });
+        
+        console.log(`Found ${response.data.convos.length} unread conversations${cursor ? ' (pagination)' : ''}`);
+        
+        // 会話を配列に追加
+        allConvos = [...allConvos, ...response.data.convos];
+        
+        // 次のページがあるかチェック
+        cursor = response.data.cursor;
+        console.log(`Pagination cursor: ${cursor || 'null'}`);
+      } while (cursor);
+      
+      console.log(`Total unread conversations found: ${allConvos.length}`);
 
       // 会話を並列処理（3つずつ）
-      await this.processConversationsInBatches(response.data.convos, state, ignoreBeforeTime, 3);
+      await this.processConversationsInBatches(allConvos, state, ignoreBeforeTime, 3);
 
       // 最後の処理時刻を更新
       await storage.updateBotState('bluesky', new Date());
