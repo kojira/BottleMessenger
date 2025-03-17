@@ -3,9 +3,10 @@ import { Bottle, BottleReply, UserStats } from "@shared/schema";
 import { InsertBottle, InsertBottleReply, InsertUserStats } from "@shared/schema";
 import { db } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { bottles, bottleReplies, userStats, botSettings, messages, botResponses } from "@shared/schema";
+import { bottles, bottleReplies, userStats, botSettings, messages, botResponses, commandLogs } from "@shared/schema";
 import { botState, type BotState, type InsertBotState } from "@shared/schema";
 import { type BotResponse, type InsertBotResponse } from "@shared/schema";
+import { type CommandLog, type InsertCommandLog } from "@shared/schema";
 
 export interface IStorage {
   // Settings operations
@@ -39,6 +40,10 @@ export interface IStorage {
   incrementUserStat(platform: string, userId: string, stat: "bottlesSent" | "bottlesReceived" | "repliesSent"): Promise<void>;
   updateUserLastActivity(platform: string, userId: string): Promise<void>;
 
+  // Command Log operations
+  logCommand(platform: string, userId: string, command: string): Promise<CommandLog>;
+  getActiveUsers(period: 'day' | 'week' | 'month'): Promise<{ platform: string; count: number }[]>;
+
   // Bot state operations
   getBotState(platform: string): Promise<BotState | null>;
   updateBotState(platform: string, lastProcessedAt: Date): Promise<BotState>;
@@ -52,6 +57,10 @@ export interface IStorage {
     platformStats: { platform: string; userCount: number; bottleCount: number; replyCount: number; mau: number }[];
     dailyStats: { date: string; bottleCount: number }[];
     dailyReplies: { date: string; replyCount: number }[];
+    dau: number; // Daily Active Users
+    wau: number; // Weekly Active Users
+    mau: number; // Monthly Active Users
+    platformActiveUsers: { platform: string; dau: number; wau: number; mau: number }[]; // Platform-specific active users
   }>;
 
   // Bot response operations
@@ -69,6 +78,7 @@ export interface IStorage {
     messages: Message[];
     botState: BotState[];
     botResponses: BotResponse[];
+    commandLogs: CommandLog[];
   }>;
 
   importData(data: {
@@ -79,6 +89,7 @@ export interface IStorage {
     messages?: Message[];
     botState?: BotState[];
     botResponses?: BotResponse[];
+    commandLogs?: CommandLog[];
   }): Promise<void>;
 }
 
@@ -345,12 +356,13 @@ export class DatabaseStorage implements IStorage {
   ): Promise<void> {
     const existingStats = await this.getUserStats(platform, userId);
 
+    const currentTime = Math.floor(Date.now() / 1000);
     if (existingStats) {
       await db
         .update(userStats)
         .set({
           [stat]: sql`${userStats[stat]} + 1`,
-          lastActivity: new Date()
+          lastActivity: sql`${currentTime}`
         })
         .where(
           and(
@@ -367,18 +379,20 @@ export class DatabaseStorage implements IStorage {
           [stat]: 1,
           bottlesSent: stat === "bottlesSent" ? 1 : 0,
           bottlesReceived: stat === "bottlesReceived" ? 1 : 0,
-          repliesSent: stat === "repliesSent" ? 1 : 0
+          repliesSent: stat === "repliesSent" ? 1 : 0,
+          lastActivity: sql`${currentTime}`
         });
     }
   }
 
   async updateUserLastActivity(platform: string, userId: string): Promise<void> {
     const existingStats = await this.getUserStats(platform, userId);
+    const currentTime = Math.floor(Date.now() / 1000);
 
     if (existingStats) {
       await db
         .update(userStats)
-        .set({ lastActivity: new Date() })
+        .set({ lastActivity: sql`${currentTime}` })
         .where(
           and(
             eq(userStats.platform, platform),
@@ -393,7 +407,8 @@ export class DatabaseStorage implements IStorage {
           userId,
           bottlesSent: 0,
           bottlesReceived: 0,
-          repliesSent: 0
+          repliesSent: 0,
+          lastActivity: sql`${currentTime}`
         });
     }
   }
@@ -408,15 +423,77 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateBotState(platform: string, lastProcessedAt: Date): Promise<BotState> {
+    const timestamp = Math.floor(lastProcessedAt.getTime() / 1000);
     const [state] = await db
       .insert(botState)
-      .values({ platform, lastProcessedAt })
+      .values({ 
+        platform, 
+        lastProcessedAt: sql`${timestamp}` 
+      })
       .onConflictDoUpdate({
         target: [botState.platform],
-        set: { lastProcessedAt }
+        set: { lastProcessedAt: sql`${timestamp}` }
       })
       .returning();
     return state;
+  }
+
+  // Command Log operations
+  async logCommand(platform: string, userId: string, command: string): Promise<CommandLog> {
+    const [created] = await db
+      .insert(commandLogs)
+      .values({
+        platform,
+        userId,
+        command
+      })
+      .returning();
+    return created;
+  }
+
+  async getActiveUsers(period: 'day' | 'week' | 'month'): Promise<{ platform: string; count: number }[]> {
+    // 期間に応じたタイムスタンプを計算
+    const now = new Date();
+    let cutoffDate: Date;
+    
+    switch (period) {
+      case 'day':
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 1);
+        break;
+      case 'week':
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 30);
+        break;
+    }
+    
+    const cutoffTimestamp = Math.floor(cutoffDate.getTime() / 1000);
+    
+    // コマンドログからアクティブユーザー数を取得
+    const activeUsers = await db
+      .select({
+        platform: commandLogs.platform,
+        count: sql<number>`COUNT(DISTINCT ${commandLogs.userId})`
+      })
+      .from(commandLogs)
+      .where(sql`${commandLogs.createdAt} > ${cutoffTimestamp}`)
+      .groupBy(commandLogs.platform);
+    
+    // プラットフォームが存在しない場合は0を返す
+    const platforms = ['bluesky', 'nostr'];
+    const result = [...activeUsers];
+    
+    for (const platform of platforms) {
+      if (!result.some(item => item.platform === platform)) {
+        result.push({ platform, count: 0 });
+      }
+    }
+    
+    return result;
   }
 
   async getGlobalStats() {
@@ -434,12 +511,14 @@ export class DatabaseStorage implements IStorage {
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-    // アクティブなユーザー数を取得（過去24時間以内にアクティビティのあるユーザー）
+    // アクティブなユーザー数を取得（過去24時間以内にコマンドを使ったユーザー）
+    // Convert to seconds since epoch to match lastActivity format
+    const twentyFourHoursAgoSeconds = Math.floor(twentyFourHoursAgo.getTime() / 1000);
     const [{ activeUsers }] = await db
       .select({ activeUsers: sql<number>`COUNT(DISTINCT "user_id")` })
       .from(userStats)
       .where(
-        sql`${userStats.lastActivity} > ${twentyFourHoursAgo.getTime()}`
+        sql`${userStats.lastActivity} > ${twentyFourHoursAgoSeconds} AND (${userStats.bottlesSent} > 0 OR ${userStats.bottlesReceived} > 0 OR ${userStats.repliesSent} > 0)`
       );
 
     // アクティブなボトルの数を取得
@@ -451,6 +530,7 @@ export class DatabaseStorage implements IStorage {
     // SQLiteでの日付計算 - 30日前のタイムスタンプを計算
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoSeconds = Math.floor(thirtyDaysAgo.getTime() / 1000);
 
     // プラットフォーム別の統計を取得
     const platformStats = await db
@@ -460,7 +540,7 @@ export class DatabaseStorage implements IStorage {
         bottleCount: sql<number>`SUM(${userStats.bottlesSent})`,
         replyCount: sql<number>`SUM(${userStats.repliesSent})`,
         mau: sql<number>`COUNT(DISTINCT CASE 
-          WHEN ${userStats.lastActivity} > ${thirtyDaysAgo.getTime()} 
+          WHEN ${userStats.lastActivity} > ${thirtyDaysAgoSeconds} AND (${userStats.bottlesSent} > 0 OR ${userStats.bottlesReceived} > 0 OR ${userStats.repliesSent} > 0)
           THEN "user_id" 
           END)`
       })
@@ -470,6 +550,7 @@ export class DatabaseStorage implements IStorage {
     // SQLiteでの日付計算 - 7日前のタイムスタンプを計算
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoSeconds = Math.floor(sevenDaysAgo.getTime() / 1000);
 
     // 過去7日間の日別統計を取得
     // SQLiteでは日付関数が異なるため、日付の切り捨てを独自に実装
@@ -479,7 +560,7 @@ export class DatabaseStorage implements IStorage {
         bottleCount: sql<number>`COUNT(*)`,
       })
       .from(bottles)
-      .where(sql`${bottles.createdAt} > ${sevenDaysAgo.getTime()}`)
+      .where(sql`${bottles.createdAt} > ${sevenDaysAgoSeconds}`)
       .groupBy(sql`date(${bottles.createdAt}/1000, 'unixepoch')`)
       .orderBy(sql`date(${bottles.createdAt}/1000, 'unixepoch')`);
 
@@ -489,9 +570,36 @@ export class DatabaseStorage implements IStorage {
         replyCount: sql<number>`COUNT(*)`,
       })
       .from(bottleReplies)
-      .where(sql`${bottleReplies.createdAt} > ${sevenDaysAgo.getTime()}`)
+      .where(sql`${bottleReplies.createdAt} > ${sevenDaysAgoSeconds}`)
       .groupBy(sql`date(${bottleReplies.createdAt}/1000, 'unixepoch')`)
       .orderBy(sql`date(${bottleReplies.createdAt}/1000, 'unixepoch')`);
+
+    // DAU, WAU, MAUを取得
+    const activeUsersByPeriod = await Promise.all([
+      this.getActiveUsers('day'),
+      this.getActiveUsers('week'),
+      this.getActiveUsers('month')
+    ]);
+
+    // 全プラットフォームの合計を計算
+    const dau = activeUsersByPeriod[0].reduce((sum, item) => sum + Number(item.count), 0);
+    const wau = activeUsersByPeriod[1].reduce((sum, item) => sum + Number(item.count), 0);
+    const mau = activeUsersByPeriod[2].reduce((sum, item) => sum + Number(item.count), 0);
+
+    // プラットフォーム別のアクティブユーザー数を計算
+    const platforms = ['bluesky', 'nostr'];
+    const platformActiveUsers = platforms.map(platform => {
+      const dayStats = activeUsersByPeriod[0].find(item => item.platform === platform) || { count: 0 };
+      const weekStats = activeUsersByPeriod[1].find(item => item.platform === platform) || { count: 0 };
+      const monthStats = activeUsersByPeriod[2].find(item => item.platform === platform) || { count: 0 };
+      
+      return {
+        platform,
+        dau: Number(dayStats.count),
+        wau: Number(weekStats.count),
+        mau: Number(monthStats.count)
+      };
+    });
 
     return {
       totalBottles,
@@ -500,7 +608,11 @@ export class DatabaseStorage implements IStorage {
       activeBottles,
       platformStats,
       dailyStats,
-      dailyReplies
+      dailyReplies,
+      dau,
+      wau,
+      mau,
+      platformActiveUsers
     };
   }
 
@@ -514,12 +626,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBotResponse(response: InsertBotResponse): Promise<BotResponse> {
+    const currentTime = Math.floor(Date.now() / 1000);
     const [created] = await db
       .insert(botResponses)
       .values({
         ...response,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: sql`${currentTime}`,
+        updatedAt: sql`${currentTime}`
       })
       .returning();
     return created;
@@ -529,13 +642,14 @@ export class DatabaseStorage implements IStorage {
     console.log("Updating bot response:", { id, response });
     
     try {
+      const currentTime = Math.floor(Date.now() / 1000);
       const [updated] = await db
         .update(botResponses)
         .set({
           platform: response.platform,
           responseType: response.responseType,
           message: response.message,
-          updatedAt: new Date()
+          updatedAt: sql`${currentTime}`
         })
         .where(eq(botResponses.id, id))
         .returning();
@@ -565,7 +679,8 @@ export class DatabaseStorage implements IStorage {
         db.select().from(userStats),
         db.select().from(messages),
         db.select().from(botState),
-        db.select().from(botResponses)
+        db.select().from(botResponses),
+        db.select().from(commandLogs)
       ]);
 
       console.log('Export results:', {
@@ -575,7 +690,8 @@ export class DatabaseStorage implements IStorage {
         userStats: results[3].length,
         messages: results[4].length,
         botState: results[5].length,
-        botResponses: results[6].length
+        botResponses: results[6].length,
+        commandLogs: results[7].length
       });
 
       const exportData = {
@@ -585,7 +701,8 @@ export class DatabaseStorage implements IStorage {
         userStats: results[3],
         messages: results[4],
         botState: results[5],
-        botResponses: results[6]
+        botResponses: results[6],
+        commandLogs: results[7]
       };
 
       if (Object.values(exportData).every(arr => !arr?.length)) {
@@ -608,6 +725,7 @@ export class DatabaseStorage implements IStorage {
     messages?: Message[];
     botState?: BotState[];
     botResponses?: BotResponse[];
+    commandLogs?: CommandLog[];
   }) {
     const transaction = async () => {
       if (data.settings?.length) {
@@ -643,6 +761,11 @@ export class DatabaseStorage implements IStorage {
       if (data.botResponses?.length) {
         await db.insert(botResponses).values(data.botResponses)
           .onConflictDoUpdate({ target: botResponses.id, set: {} });
+      }
+
+      if (data.commandLogs?.length) {
+        await db.insert(commandLogs).values(data.commandLogs)
+          .onConflictDoUpdate({ target: commandLogs.id, set: {} });
       }
     };
 

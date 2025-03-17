@@ -90,7 +90,7 @@ export class NostrBot {
         content: encryptedContent
       };
 
-      event.id = getEventHash(event);
+      event.id = getEventHash(event)!;
       event.sig = signEvent(event, privateKey);
 
       console.log('Attempting to publish event:', { ...event, content: '[encrypted]' });
@@ -265,6 +265,7 @@ export class NostrBot {
           console.log('Decrypted DM content:', content);
 
           // Process command and send response
+          await storage.updateUserLastActivity("nostr", event.pubkey);
           const response = await commandHandler.handleCommand(
             'nostr',
             event.pubkey,
@@ -273,6 +274,8 @@ export class NostrBot {
 
           if (response.content) {
             console.log('Sending response:', response.content);
+            // Nostrでのコマンド実行を記録する（Active Usersカウント用）
+            await storage.incrementUserStat("nostr", event.pubkey, "repliesSent");
             await this.sendDM(event.pubkey, response.content);
             console.log('Response sent successfully');
           }
@@ -286,7 +289,7 @@ export class NostrBot {
         console.log('End of stored events');
       });
 
-      sub.on('error', (error: any) => {
+      (sub as any).on('error', (error: any) => {
         console.error('Subscription error:', error);
         this.reconnect().catch(error => {
           console.error('Error during reconnect:', error);

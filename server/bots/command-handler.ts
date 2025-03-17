@@ -40,6 +40,14 @@ export class CommandHandler {
 
     console.log(`Handling command: ${cmd} from ${platform}:${userId}`);
 
+    // コマンドをログに記録
+    try {
+      await storage.logCommand(platform, userId, command);
+    } catch (error) {
+      console.error('Failed to log command:', error);
+      // コマンドログの記録に失敗しても処理は続行
+    }
+
     try {
       switch (cmd) {
         case "help":

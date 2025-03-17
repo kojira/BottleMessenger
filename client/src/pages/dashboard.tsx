@@ -272,6 +272,23 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Active Bottles</p>
                 <p className="font-medium">{globalStats?.activeBottles || 0}</p>
               </div>
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium mb-2">User Activity</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">DAU</p>
+                    <p className="text-lg font-medium">{globalStats?.dau || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">WAU</p>
+                    <p className="text-lg font-medium">{globalStats?.wau || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">MAU</p>
+                    <p className="text-lg font-medium">{globalStats?.mau || 0}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -283,27 +300,44 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {globalStats?.platformStats.map(stat => (
+              {globalStats?.platformActiveUsers.map(stat => (
                 <div key={stat.platform} className="space-y-2">
                   <h3 className="font-medium">{stat.platform}</h3>
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Monthly Active</p>
+                      <p className="text-sm text-muted-foreground">DAU</p>
+                      <p className="text-lg font-medium">{stat.dau}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">WAU</p>
+                      <p className="text-lg font-medium">{stat.wau}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">MAU</p>
                       <p className="text-lg font-medium">{stat.mau}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Users</p>
-                      <p className="text-lg font-medium">{stat.userCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Bottles</p>
-                      <p className="text-lg font-medium">{stat.bottleCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Replies</p>
-                      <p className="text-lg font-medium">{stat.replyCount}</p>
-                    </div>
                   </div>
+                  
+                  {/* 従来の統計情報 */}
+                  {globalStats?.platformStats
+                    .filter(ps => ps.platform === stat.platform)
+                    .map(ps => (
+                      <div key={`${ps.platform}-stats`} className="grid grid-cols-3 gap-4 border-t pt-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total Users</p>
+                          <p className="text-lg font-medium">{ps.userCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Bottles</p>
+                          <p className="text-lg font-medium">{ps.bottleCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Replies</p>
+                          <p className="text-lg font-medium">{ps.replyCount}</p>
+                        </div>
+                      </div>
+                    ))
+                  }
                 </div>
               ))}
             </div>

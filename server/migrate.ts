@@ -88,6 +88,13 @@ const tables = [
     message TEXT NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)),
     updated_at INTEGER NOT NULL DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))
+  )`,
+  `CREATE TABLE IF NOT EXISTS command_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    platform TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))
   )`
 ];
 

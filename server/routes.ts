@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { messageRelay } from "./bots/message-relay";
-import { settingsSchema, insertMessageSchema, insertBotResponseSchema } from "@shared/schema"; // Added import
+import { settingsSchema, insertMessageSchema, insertBotResponseSchema, insertCommandLogSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { getPublicKey as nostrGetPublicKey } from "nostr-tools";
 import { AtpAgent } from '@atproto/api';
@@ -214,7 +214,39 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // 全体の統計情報を取得するエンドポイントを追加
+  // コマンドログを取得するエンドポイント
+  app.get("/api/command-logs", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const platform = req.query.platform as string;
+      const userId = req.query.userId as string;
+      
+      // TODO: Implement method to get command logs with filtering
+      // For now, we'll just return an empty array
+      res.json([]);
+    } catch (error) {
+      console.error('Error getting command logs:', error);
+      res.status(500).json({ error: "Failed to get command logs" });
+    }
+  });
+
+  // アクティブユーザー数を取得するエンドポイント
+  app.get("/api/stats/active-users", async (req, res) => {
+    try {
+      const period = req.query.period as 'day' | 'week' | 'month';
+      if (!period || !['day', 'week', 'month'].includes(period)) {
+        return res.status(400).json({ error: "Invalid period. Must be 'day', 'week', or 'month'" });
+      }
+      
+      const activeUsers = await storage.getActiveUsers(period);
+      res.json(activeUsers);
+    } catch (error) {
+      console.error('Error getting active users:', error);
+      res.status(500).json({ error: "Failed to get active users" });
+    }
+  });
+
+  // 全体の統計情報を取得するエンドポイント
   app.get("/api/stats/global", async (_req, res) => {
     try {
       const stats = await storage.getGlobalStats();
@@ -224,7 +256,6 @@ export async function registerRoutes(app: Express) {
       res.status(500).json({ error: "Failed to get global stats" });
     }
   });
-
 
   // ボット応答メッセージのルートを追加
   app.get("/api/responses", async (_req, res) => {

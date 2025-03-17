@@ -77,6 +77,14 @@ export const botResponses = sqliteTable("bot_responses", {
   updatedAt: integer("updated_at", { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
+export const commandLogs = sqliteTable("command_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  platform: text("platform").notNull(),
+  userId: text("user_id").notNull(),
+  command: text("command").notNull(),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().defaultNow(),
+});
+
 // Insert schemas
 export const settingsSchema = createInsertSchema(botSettings).omit({ id: true });
 export const insertBottleSchema = createInsertSchema(bottles).omit({ id: true, createdAt: true });
@@ -90,6 +98,11 @@ export const insertBotResponseSchema = createInsertSchema(botResponses).omit({
   updatedAt: true
 });
 
+export const insertCommandLogSchema = createInsertSchema(commandLogs).omit({
+  id: true,
+  createdAt: true
+});
+
 // Types
 export type Settings = typeof botSettings.$inferSelect;
 export type Bottle = typeof bottles.$inferSelect;
@@ -98,7 +111,9 @@ export type UserStats = typeof userStats.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type BotState = typeof botState.$inferSelect;
 export type BotResponse = typeof botResponses.$inferSelect;
+export type CommandLog = typeof commandLogs.$inferSelect;
 export type InsertBotResponse = z.infer<typeof insertBotResponseSchema>;
+export type InsertCommandLog = z.infer<typeof insertCommandLogSchema>;
 
 
 // Validation schemas
@@ -153,6 +168,13 @@ export interface DailyReplies {
   replyCount: number;
 }
 
+export interface PlatformActiveUsers {
+  platform: string;
+  dau: number; // Daily Active Users
+  wau: number; // Weekly Active Users
+  mau: number; // Monthly Active Users
+}
+
 export interface GlobalStats {
   totalBottles: number;
   totalReplies: number;
@@ -161,4 +183,8 @@ export interface GlobalStats {
   platformStats: PlatformStats[];
   dailyStats: DailyStats[];
   dailyReplies: DailyReplies[];
+  dau: number; // Daily Active Users (total)
+  wau: number; // Weekly Active Users (total)
+  mau: number; // Monthly Active Users (total)
+  platformActiveUsers: PlatformActiveUsers[]; // Platform-specific active users
 }
