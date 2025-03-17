@@ -66,7 +66,7 @@ export default function Messages() {
                   </span>
                 </TableCell>
                 <TableCell>
-                  {new Date(message.createdAt).toLocaleString()}
+                  {new Date(Number(message.createdAt)).toLocaleString()}
                 </TableCell>
               </TableRow>
             ))}
