@@ -1,0 +1,26 @@
+name: Node runtime
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build every Docker stage and verify the patched runtime
+        run: |
+          for stage in base deps development builder production; do
+            docker build --pull --target "$stage" -t "bottlemessenger-ci:$stage" .
+            docker run --rm --network none --entrypoint node "bottlemessenger-ci:$stage" -e 'require("node:assert/strict").equal(process.versions.node, "22.23.4")'
+          done
+      - name: Typecheck and verify native SQLite in the Linux image
+        run: |
+          docker run --rm --network none --entrypoint npm bottlemessenger-ci:builder run check
+          docker run --rm --network none --entrypoint node bottlemessenger-ci:production -e 'const assert = require("node:assert/strict"); const Database = require("better-sqlite3"); const db = new Database(":memory:"); assert.equal(db.prepare("select 42 as answer").get().answer, 42); db.close(); assert.ok(require("node:fs").existsSync("dist/index.js")); assert.ok(require("node:fs").existsSync("dist/public/index.html"));'

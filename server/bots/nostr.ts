@@ -1,4 +1,4 @@
-import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter } from 'nostr-tools';
+import { SimplePool, getPublicKey, nip04, getEventHash, signEvent, type Filter, type Event, type UnsignedEvent } from 'nostr-tools';
 import { commandHandler } from './command-handler';
 import WebSocket from 'ws';
 import { storage } from '../storage';
@@ -82,7 +82,7 @@ export class NostrBot {
         content
       );
 
-      const event: NostrEvent = {
+      const unsignedEvent: UnsignedEvent = {
         kind: 4,
         pubkey,
         created_at: Math.floor(Date.now() / 1000),
@@ -90,8 +90,11 @@ export class NostrBot {
         content: encryptedContent
       };
 
-      event.id = getEventHash(event)!;
-      event.sig = signEvent(event, privateKey);
+      const event: Event = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+        sig: signEvent(unsignedEvent, privateKey)
+      };
 
       console.log('Attempting to publish event:', { ...event, content: '[encrypted]' });
 
@@ -115,7 +118,7 @@ export class NostrBot {
       const privateKey = this.credentials.privateKey;
       const pubkey = getPublicKey(privateKey);
 
-      const event: NostrEvent = {
+      const unsignedEvent: UnsignedEvent = {
         kind,
         pubkey,
         created_at: Math.floor(Date.now() / 1000),
@@ -123,8 +126,11 @@ export class NostrBot {
         content
       };
 
-      event.id = getEventHash(event);
-      event.sig = signEvent(event, privateKey);
+      const event: Event = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+        sig: signEvent(unsignedEvent, privateKey)
+      };
 
       console.log('Attempting to publish event:', { ...event, content });
 
